@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-# ¡NUEVAS IMPORTACIONES PARA BIOPYTHON!
+# IMPORTACIONES PARA BIOPYTHON
 from Bio.PDB import MMCIFParser
 from Bio.PDB.PDBParser import PDBParser # Por si el archivo es PDB
 import numpy as np # Para el promedio si fuera necesario, aunque Pandas lo hace
