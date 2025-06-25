@@ -1,0 +1,39 @@
+H - Histidina
+
+I - Isoleucina
+
+L - Leucina
+
+K - Lisina
+
+M - Metionina
+
+F - Fenilalanina
+
+T - Treonina
+
+W - Triptófano
+
+V - Valina
+
+A - Alanina
+
+R - Arginina (condicionalmente esencial)
+
+N - Asparagina
+
+D - Ácido Aspártico
+
+C - Cisteína (condicionalmente esencial)
+
+E - Ácido Glutámico
+
+Q - Glutamina (condicionalmente esencial)
+
+G - Glicina (condicionalmente esencial)
+
+P - Prolina (condicionalmente esencial)
+
+S - Serina
+
+Y - Tirosina (condicionalmente esencial)
