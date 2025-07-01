@@ -354,76 +354,120 @@
 
 {% block extra_js %}
 <!-- NGL Viewer Library -->
-<script src="https://cdn.jsdelivr.net/npm/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+<script src="https://unpkg.com/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+
+<script id="view-data" type="application/json">
+  {{
+    {
+      "comparisonId": comparison_id,
+      "hasOriginal": comparison.comparison.original_model_path != None,
+      "hasMutated": comparison.comparison.mutated_model_path != None,
+      "originalModelUrl": url_for('main.get_model_file_for_viewer', comparison_id=comparison_id, model_type='original', _external=True) if comparison.comparison.original_model_path else None,
+      "mutatedModelUrl": url_for('main.get_model_file_for_viewer', comparison_id=comparison_id, model_type='mutated', _external=True) if comparison.comparison.mutated_model_path else None
+    } | tojson
+  }}
+</script>
 
 <script>
   $(document).ready(function () {
+    // --- PASO 1: Leer los datos desde el bloque JSON ---
+    const dataElement = document.getElementById('view-data');
+    if (!dataElement) {
+      console.error('❌ No se encontró el elemento view-data');
+      $('#protein-viewer').html(`
+        <div class="d-flex align-items-center justify-content-center h-100">
+          <div class="text-center text-danger">
+            <h5>Error de Configuración</h5>
+            <p>No se pudieron cargar los datos de configuración</p>
+          </div>
+        </div>
+      `);
+      return;
+    }
+
+    let config;
+    try {
+      config = JSON.parse(dataElement.textContent);
+      console.log('✅ Configuración cargada:', config);
+    } catch (e) {
+      console.error('❌ Error parseando configuración JSON:', e);
+      $('#protein-viewer').html(`
+        <div class="d-flex align-items-center justify-content-center h-100">
+          <div class="text-center text-danger">
+            <h5>Error de Configuración</h5>
+            <p>Los datos de configuración no son válidos</p>
+          </div>
+        </div>
+      `);
+      return;
+    }
+
+    // --- PASO 2: Usar los datos leídos ---
+    // Ya no hay Jinja aquí. Todo es JavaScript puro.
+    const hasOriginal = config.hasOriginal;
+    const hasMutated = config.hasMutated;
+    const originalModelUrl = config.originalModelUrl;
+    const mutatedModelUrl = config.mutatedModelUrl;
+    const comparisonId = config.comparisonId;
+
     // Configurar las barras de progreso usando data-width
     $('.progress-bar[data-width]').each(function () {
       const width = $(this).attr('data-width') + '%';
       $(this).css('width', width);
     });
 
-    // URLs de los modelos (definidas desde el servidor)
-    const hasOriginal = {{ 'true' if comparison.comparison.original_model_path else 'false' }
-  };
-  const hasMutated = {{ 'true' if comparison.comparison.mutated_model_path else 'false' }};
+    // Variables del visualizador
+    let stage = null;
+    let currentComponents = [];
 
-  const originalModelUrl = hasOriginal ? '{{ url_for("main.get_model_file_for_viewer", comparison_id=comparison_id, model_type="original") }}' : null;
-  const mutatedModelUrl = hasMutated ? '{{ url_for("main.get_model_file_for_viewer", comparison_id=comparison_id, model_type="mutated") }}' : null;
+    // Función para inicializar el stage de NGL
+    function initializeNGL() {
+      console.log('🚀 Starting NGL initialization...');
+      console.log('Viewport element exists:', $('#protein-viewer').length > 0);
 
-  // Variables del visualizador
-  let stage = null;
-  let currentComponents = [];
+      try {
+        console.log('📦 Creating NGL Stage...');
+        stage = new NGL.Stage("protein-viewer");
+        console.log('✅ NGL Stage created successfully');
 
-  // Función para inicializar el stage de NGL
-  function initializeNGL() {
-    console.log('🚀 Starting NGL initialization...');
-    console.log('Viewport element exists:', $('#protein-viewer').length > 0);
+        $('#loading-message').hide();
+        console.log('🔄 Loading spinner hidden');
 
-    try {
-      console.log('📦 Creating NGL Stage...');
-      stage = new NGL.Stage("protein-viewer");
-      console.log('✅ NGL Stage created successfully');
+        // Configurar el stage
+        stage.setParameters({
+          backgroundColor: "white",
+          quality: "medium"
+        });
+        console.log('⚙️ Stage parameters set');
 
-      $('#loading-message').hide();
-      console.log('🔄 Loading spinner hidden');
+        // Auto-cargar el primer modelo disponible
+        console.log('🎯 hasOriginal:', hasOriginal);
+        console.log('🧪 hasMutated:', hasMutated);
+        console.log('🔗 originalModelUrl:', originalModelUrl);
+        console.log('🔗 mutatedModelUrl:', mutatedModelUrl);
 
-      // Configurar el stage
-      stage.setParameters({
-        backgroundColor: "white",
-        quality: "medium"
-      });
-      console.log('⚙️ Stage parameters set');
+        if (hasOriginal) {
+          console.log('🎯 Loading original model...');
+          loadOriginalModel();
+        } else if (hasMutated) {
+          console.log('🧪 Loading mutated model...');
+          loadMutatedModel();
+        } else {
+          console.log('⚠️ No models available to load');
+        }
 
-      // Auto-cargar el primer modelo disponible
-      console.log('🎯 hasOriginal:', hasOriginal);
-      console.log('🧪 hasMutated:', hasMutated);
-      console.log('🔗 originalModelUrl:', originalModelUrl);
-      console.log('🔗 mutatedModelUrl:', mutatedModelUrl);
-
-      if (hasOriginal) {
-        console.log('🎯 Loading original model...');
-        loadOriginalModel();
-      } else if (hasMutated) {
-        console.log('🧪 Loading mutated model...');
-        loadMutatedModel();
-      } else {
-        console.log('⚠️ No models available to load');
+        console.log('✅ NGL Viewer inicializado correctamente');
+      } catch (error) {
+        console.error('❌ Error al inicializar NGL Viewer:', error);
+        console.error('Error details:', error.message);
+        console.error('Error stack:', error.stack);
+        showError('Error al inicializar el visualizador 3D: ' + error.message);
       }
-
-      console.log('✅ NGL Viewer inicializado correctamente');
-    } catch (error) {
-      console.error('❌ Error al inicializar NGL Viewer:', error);
-      console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
-      showError('Error al inicializar el visualizador 3D: ' + error.message);
     }
-  }
 
-  // Función para mostrar errores
-  function showError(message) {
-    $('#protein-viewer').html(`
+    // Función para mostrar errores
+    function showError(message) {
+      $('#protein-viewer').html(`
           <div class="d-flex align-items-center justify-content-center h-100">
             <div class="text-center text-danger">
               <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
@@ -435,133 +479,151 @@
             </div>
           </div>
         `);
-  }
-
-  // Función para limpiar componentes
-  function clearComponents() {
-    currentComponents.forEach(comp => stage.removeComponent(comp));
-    currentComponents = [];
-  }
-
-  // Función para cargar modelo original
-  function loadOriginalModel() {
-    if (!originalModelUrl) return;
-
-    clearComponents();
-    stage.loadFile(originalModelUrl).then(function (component) {
-      currentComponents.push(component);
-      component.addRepresentation("cartoon", {
-        color: "chainid",
-        opacity: 0.8
-      });
-      component.addRepresentation("ball+stick", {
-        sele: "hetero",
-        color: "element"
-      });
-      component.autoView();
-      console.log('✅ Modelo original cargado');
-    }).catch(function (error) {
-      console.error('❌ Error cargando modelo original:', error);
-      showError('No se pudo cargar el modelo original');
-    });
-  }
-
-  // Función para cargar modelo mutado
-  function loadMutatedModel() {
-    if (!mutatedModelUrl) return;
-
-    clearComponents();
-    stage.loadFile(mutatedModelUrl).then(function (component) {
-      currentComponents.push(component);
-      component.addRepresentation("cartoon", {
-        color: "chainid",
-        opacity: 0.8
-      });
-      component.addRepresentation("ball+stick", {
-        sele: "hetero",
-        color: "element"
-      });
-      component.autoView();
-      console.log('✅ Modelo mutado cargado');
-    }).catch(function (error) {
-      console.error('❌ Error cargando modelo mutado:', error);
-      showError('No se pudo cargar el modelo mutado');
-    });
-  }
-
-  // Función para cargar ambos modelos
-  function loadBothModels() {
-    if (!originalModelUrl || !mutatedModelUrl) return;
-
-    clearComponents();
-
-    // Cargar modelo original
-    stage.loadFile(originalModelUrl).then(function (component) {
-      currentComponents.push(component);
-      component.addRepresentation("cartoon", {
-        color: "#2E86C1",  // Azul
-        opacity: 0.7
-      });
-      component.addRepresentation("ball+stick", {
-        sele: "hetero",
-        color: "element"
-      });
-
-      // Cargar modelo mutado
-      return stage.loadFile(mutatedModelUrl);
-    }).then(function (component) {
-      currentComponents.push(component);
-      component.addRepresentation("cartoon", {
-        color: "#E74C3C",  // Rojo
-        opacity: 0.7
-      });
-      component.addRepresentation("ball+stick", {
-        sele: "hetero",
-        color: "element"
-      });
-      stage.autoView();
-      console.log('✅ Ambos modelos cargados para comparación');
-    }).catch(function (error) {
-      console.error('❌ Error cargando modelos para comparación:', error);
-      showError('No se pudieron cargar los modelos para comparación');
-    });
-  }
-
-  // Event listeners para los botones
-  $('#load-original').click(loadOriginalModel);
-  $('#load-mutated').click(loadMutatedModel);
-  $('#load-both').click(loadBothModels);
-  $('#reset-view').click(function () {
-    if (stage) {
-      stage.autoView();
     }
-  });
 
-  // Inicializar NGL cuando esté disponible
-  console.log('🔍 Checking NGL availability...');
-  console.log('NGL type:', typeof NGL);
-  console.log('jQuery available:', typeof $ !== 'undefined');
+    // Función para limpiar componentes
+    function clearComponents() {
+      currentComponents.forEach(comp => stage.removeComponent(comp));
+      currentComponents = [];
+    }
 
-  if (typeof NGL !== 'undefined') {
-    console.log('✅ NGL is available, initializing...');
-    initializeNGL();
-  } else {
-    console.log('⏳ NGL not ready, waiting...');
-    // Esperar a que se cargue la librería
-    setTimeout(function () {
-      console.log('🔍 Rechecking NGL after timeout...');
-      console.log('NGL type:', typeof NGL);
-      if (typeof NGL !== 'undefined') {
-        console.log('✅ NGL loaded after timeout, initializing...');
-        initializeNGL();
-      } else {
-        console.error('❌ NGL still not available after timeout');
-        showError('No se pudo cargar la librería NGL Viewer');
+    // Función para cargar modelo original
+    function loadOriginalModel() {
+      if (!originalModelUrl) return;
+
+      console.log('🎯 Iniciando carga del modelo original:', originalModelUrl);
+      const startTime = performance.now();
+
+      clearComponents();
+
+      // NGL inferirá el formato desde la URL y los headers
+      stage.loadFile(originalModelUrl).then(function (component) {
+        const loadTime = performance.now() - startTime;
+        console.log(`✅ Modelo original cargado en ${loadTime.toFixed(2)}ms`);
+
+        currentComponents.push(component);
+        component.addRepresentation("cartoon", {
+          color: "chainid",
+          opacity: 0.8
+        });
+        component.addRepresentation("ball+stick", {
+          sele: "hetero",
+          color: "element"
+        });
+        component.autoView();
+        console.log('✅ Representaciones añadidas al modelo original');
+      }).catch(function (error) {
+        console.error('❌ Error cargando modelo original:', error);
+        console.error('URL que falló:', originalModelUrl);
+        showError('No se pudo cargar el modelo original: ' + error.message);
+      });
+    }
+
+    // Función para cargar modelo mutado
+    function loadMutatedModel() {
+      if (!mutatedModelUrl) return;
+
+      console.log('🧪 Iniciando carga del modelo mutado:', mutatedModelUrl);
+      const startTime = performance.now();
+
+      clearComponents();
+
+      // NGL inferirá el formato desde la URL y los headers
+      stage.loadFile(mutatedModelUrl).then(function (component) {
+        const loadTime = performance.now() - startTime;
+        console.log(`✅ Modelo mutado cargado en ${loadTime.toFixed(2)}ms`);
+
+        currentComponents.push(component);
+        component.addRepresentation("cartoon", {
+          color: "chainid",
+          opacity: 0.8
+        });
+        component.addRepresentation("ball+stick", {
+          sele: "hetero",
+          color: "element"
+        });
+        component.autoView();
+        console.log('✅ Representaciones añadidas al modelo mutado');
+      }).catch(function (error) {
+        console.error('❌ Error cargando modelo mutado:', error);
+        console.error('URL que falló:', mutatedModelUrl);
+        showError('No se pudo cargar el modelo mutado: ' + error.message);
+      });
+    }
+
+    // Función para cargar ambos modelos
+    function loadBothModels() {
+      if (!originalModelUrl || !mutatedModelUrl) return;
+
+      clearComponents();
+
+      // NGL inferirá el formato desde la URL y los headers
+      stage.loadFile(originalModelUrl).then(function (component) {
+        currentComponents.push(component);
+        component.addRepresentation("cartoon", {
+          color: "#2E86C1",  // Azul
+          opacity: 0.7
+        });
+        component.addRepresentation("ball+stick", {
+          sele: "hetero",
+          color: "element"
+        });
+
+        // Cargar modelo mutado
+        return stage.loadFile(mutatedModelUrl);
+      }).then(function (component) {
+        currentComponents.push(component);
+        component.addRepresentation("cartoon", {
+          color: "#E74C3C",  // Rojo
+          opacity: 0.7
+        });
+        component.addRepresentation("ball+stick", {
+          sele: "hetero",
+          color: "element"
+        });
+        stage.autoView();
+        console.log('✅ Ambos modelos cargados para comparación');
+      }).catch(function (error) {
+        console.error('❌ Error cargando modelos para comparación:', error);
+        showError('No se pudieron cargar los modelos para comparación');
+      });
+    }
+
+    // Event listeners para los botones
+    $('#load-original').click(loadOriginalModel);
+    $('#load-mutated').click(loadMutatedModel);
+    $('#load-both').click(loadBothModels);
+    $('#reset-view').click(function () {
+      if (stage) {
+        stage.autoView();
       }
-    }, 2000); // Increased timeout to 2 seconds
-  }
+    });
 
-  console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
+    // Inicializar NGL cuando esté disponible
+    console.log('🔍 Checking NGL availability...');
+    console.log('NGL type:', typeof NGL);
+    console.log('jQuery available:', typeof $ !== 'undefined');
+
+    if (typeof NGL !== 'undefined') {
+      console.log('✅ NGL is available, initializing...');
+      initializeNGL();
+    } else {
+      console.log('⏳ NGL not ready, waiting...');
+      // Esperar a que se cargue la librería
+      setTimeout(function () {
+        console.log('🔍 Rechecking NGL after timeout...');
+        console.log('NGL type:', typeof NGL);
+        if (typeof NGL !== 'undefined') {
+          console.log('✅ NGL loaded after timeout, initializing...');
+          initializeNGL();
+        } else {
+          console.error('❌ NGL still not available after timeout');
+          showError('No se pudo cargar la librería NGL Viewer');
+        }
+      }, 2000); // Increased timeout to 2 seconds
+    }
+
+    console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
   });
 </script>
 {% endblock %}

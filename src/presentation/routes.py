@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, flash, redirect, url_for, jsonify, send_file, make_response
 from .forms import SequenceComparisonForm, UserSearchForm
 from src.business.comparison_manager import ComparisonManager
 from config.config import get_config_dict
@@ -126,16 +126,33 @@ def get_model_file(comparison_id, model_type):
     elif model_type == 'mutated':
         model_path = comparison_data.get('mutated_model_path')
     
-    if not model_path or not os.path.exists(model_path):
+    if not model_path:
+        abort(404)
+    
+    # Resolver ruta absoluta si la ruta es relativa
+    if not os.path.isabs(model_path):
+        # La ruta es relativa al directorio raíz del proyecto
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        model_path = os.path.join(project_root, model_path)
+    
+    if not os.path.exists(model_path):
         abort(404)
     
     return send_file(model_path, as_attachment=True)
 
-@main_bp.route('/api/comparison/<int:comparison_id>/model/<model_type>/view')
+@main_bp.route('/api/comparison/<int:comparison_id>/model/<model_type>/view.cif', methods=['GET', 'OPTIONS'])
 def get_model_file_for_viewer(comparison_id, model_type):
-    """API endpoint para servir archivos de modelos 3D para visualización (sin descarga)"""
+    """API endpoint para servir archivos de modelos 3D para visualización (con CORS)"""
     import os
-    from flask import send_file, abort, Response
+    from flask import request, abort
+    
+    # Handle CORS preflight request
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
     
     details = comparison_manager.get_comparison_details(comparison_id)
     if not details:
@@ -148,30 +165,33 @@ def get_model_file_for_viewer(comparison_id, model_type):
     elif model_type == 'mutated':
         model_path = comparison_data.get('mutated_model_path')
     
-    if not model_path or not os.path.exists(model_path):
+    if not model_path:
         abort(404)
     
-    # Servir el archivo para visualización con headers apropiados para CORS
-    def generate():
-        with open(model_path, 'r', encoding='utf-8') as f:
-            yield f.read()
+    # --- USAMOS TU LÓGICA DE RUTAS QUE YA FUNCIONA ---
+    if not os.path.isabs(model_path):
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        model_path = os.path.join(project_root, model_path)
+    # --- FIN DE TU LÓGICA ---
     
-    # Detectar tipo de archivo y establecer mimetype correcto
-    if model_path.endswith('.cif'):
-        mimetype = 'chemical/x-cif'
-    elif model_path.endswith('.pdb'):
-        mimetype = 'chemical/x-pdb'
-    else:
-        mimetype = 'text/plain'
+    if not os.path.exists(model_path):
+        print(f"❌ Archivo no encontrado: {model_path}", flush=True)
+        abort(404)
     
-    return Response(generate(), 
-                   mimetype=mimetype,
-                   headers={
-                       'Access-Control-Allow-Origin': '*',
-                       'Cache-Control': 'public, max-age=3600',
-                       'Content-Type': mimetype
-                   })
+    print(f"✅ Sirviendo archivo para visualización (con CORS): {model_path}", flush=True)
 
+    # --- LA SOLUCIÓN DE CORS MEJORADA ---
+    # 1. Creamos la respuesta a partir de send_file
+    response = make_response(send_file(model_path, as_attachment=False, mimetype='chemical/x-cif'))
+    
+    # 2. Añadimos todos los encabezados CORS necesarios
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Expose-Headers'] = 'Content-Length, Content-Type'
+    # --- FIN DE LA SOLUCIÓN ---
+
+    return response
 @main_bp.route('/api/comparison/<int:comparison_id>/structural-analysis')
 def get_structural_analysis(comparison_id):
     """API endpoint para obtener análisis estructural en formato JSON"""

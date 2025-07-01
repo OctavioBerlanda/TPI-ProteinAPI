@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NGL Test - Known Working PDB</title>
+  <script src="https://unpkg.com/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+</head>
+
+<body>
+  <h1>NGL Test - Known Working PDB</h1>
+  <div id="viewport" style="width:800px; height:600px; border:1px solid #ccc;"></div>
+  <div>
+    <button onclick="loadPDBExample()">Load PDB Example (1CRN)</button>
+    <button onclick="loadOurCIF()">Load Our CIF</button>
+  </div>
+
+  <script>
+    let stage;
+
+    document.addEventListener('DOMContentLoaded', function () {
+      // Initialize NGL Stage
+      stage = new NGL.Stage('viewport');
+      console.log('✅ NGL Stage initialized');
+
+      // Add default controls
+      stage.setParameters({
+        backgroundColor: 'white'
+      });
+    });
+
+    function loadPDBExample() {
+      console.log('🧪 Loading known working PDB...');
+
+      // Load a small known protein from RCSB PDB
+      stage.loadFile('rcsb://1crn').then(function (component) {
+        console.log('✅ PDB loaded successfully');
+        component.addRepresentation('cartoon');
+        component.autoView();
+      }).catch(function (error) {
+        console.error('❌ Error loading PDB:', error);
+      });
+    }
+
+    function loadOurCIF() {
+      const modelUrl = 'http://localhost:5000/api/comparison/2/model/original/view.cif';
+
+      console.log('🧪 Loading our CIF from:', modelUrl);
+
+      stage.loadFile(modelUrl).then(function (component) {
+        console.log('✅ Our CIF loaded successfully');
+        console.log('Component:', component);
+
+        component.addRepresentation('cartoon', {
+          color: 'chainid'
+        });
+        component.autoView();
+
+      }).catch(function (error) {
+        console.error('❌ Error loading our CIF:', error);
+        console.error('Error details:', error.message);
+      });
+    }
+  </script>
+</body>
+
+</html>

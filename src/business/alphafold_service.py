@@ -241,44 +241,47 @@ class AlphaFoldService:
     
     def _generate_demo_cif_content(self, sequence: str, job_name: str) -> str:
         """
-        Genera contenido CIF (mmCIF) de demostración
+        Genera contenido CIF (mmCIF) de demostración más compatible con NGL
         
         Args:
             sequence: Secuencia de aminoácidos
             job_name: Nombre del trabajo
             
         Returns:
-            Contenido del archivo CIF
+            Contenido del archivo CIF en formato mmCIF estándar
         """
         from datetime import datetime
         
-        # Header CIF
-        header = f"""data_demo_structure
+        # Estructura básica mmCIF compatible con NGL
+        cif_content = f"""data_demo_structure
 #
 _entry.id   demo_structure
-_entry.title   "Protein structure prediction for {job_name}"
 #
-_entity.id   1
-_entity.type   polymer
-_entity.pdbx_description   "Predicted protein"
+_audit_conform.dict_name       mmcif_pdbx.dic
+_audit_conform.dict_version    5.397
+#
+_entity.id                         1
+_entity.type                       polymer
+_entity.src_method                 man
+_entity.pdbx_description           'Demo protein'
+_entity.formula_weight             ?
 #
 _entity_poly.entity_id   1
-_entity_poly.type   "polypeptide(L)"
-_entity_poly.pdbx_seq_one_letter_code   "{sequence}"
+_entity_poly.type        'polypeptide(L)'
+_entity_poly.nstd_linkage         no
+_entity_poly.nstd_monomer         no
+_entity_poly.pdbx_seq_one_letter_code
+;{sequence}
+;
 #
-_struct.entry_id   demo_structure
-_struct.title   "AlphaFold prediction for {job_name}"
+_struct.entry_id                  demo_structure
+_struct.title                     'Demo protein structure for {job_name}'
 #
-_struct_conf.conf_type_id   HELX_P
-_struct_conf.id   H1
-_struct_conf.pdbx_PDB_helix_id   1
-_struct_conf.beg_label_comp_id   {sequence[0] if sequence else 'M'}
-_struct_conf.beg_label_asym_id   A
-_struct_conf.beg_label_seq_id   1
-_struct_conf.end_label_comp_id   {sequence[-1] if sequence else 'G'}
-_struct_conf.end_label_asym_id   A
-_struct_conf.end_label_seq_id   {len(sequence)}
-_struct_conf.pdbx_PDB_helix_class   1
+_struct_asym.id                    A
+_struct_asym.pdbx_blank_PDB_chainid_flag   N
+_struct_asym.pdbx_modified         N
+_struct_asym.entity_id             1
+_struct_asym.details               ?
 #
 loop_
 _atom_site.group_PDB
@@ -303,11 +306,7 @@ _atom_site.auth_asym_id
 _atom_site.auth_atom_id
 _atom_site.pdbx_PDB_model_num
 """
-        
-        # Generar coordenadas atómicas para CIF
-        atoms = []
-        atom_id = 1
-        
+
         # Mapeo de aminoácidos a códigos de 3 letras
         aa_map = {
             'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'C': 'CYS',
@@ -316,30 +315,25 @@ _atom_site.pdbx_PDB_model_num
             'S': 'SER', 'T': 'THR', 'W': 'TRP', 'Y': 'TYR', 'V': 'VAL'
         }
         
+        # Generar coordenadas atómicas (solo CA para simplificar)
+        atoms = []
         for i, aa in enumerate(sequence):
-            # Coordenadas simplificadas para hélice alfa
-            # Ángulos de una hélice alfa típica
-            phi = -60.0 * 3.14159 / 180.0  # radianes
-            psi = -45.0 * 3.14159 / 180.0  # radianes
-            
-            # Posición del CA (carbono alfa)
-            x = i * 1.5 * 3.14159 / 3.6  # 3.6 residuos por vuelta
-            y = 2.3 * i * 3.14159 / 180.0  # subida por residuo
-            z = 1.5 * i * 3.14159 / 180.0
-            
-            # Convertir coordenadas a hélice
-            x_helix = 2.3 * (i * 0.1)
-            y_helix = 2.3 * (0.1 * i) * 1.2
-            z_helix = i * 1.5
-            
             aa_code = aa_map.get(aa, 'ALA')
             
-            # Línea para CA en formato CIF
-            atom_line = f"ATOM {atom_id:6d} C CA . {aa_code} A 1 {i+1:4d} ? {x_helix:8.3f} {y_helix:8.3f} {z_helix:8.3f} 1.00 85.00 ? {i+1:4d} {aa_code} A CA 1"
+            # Coordenadas simplificadas en hélice alfa
+            angle = i * 2.0 * 3.14159 / 3.6  # 3.6 residuos por vuelta
+            x = 8.0 * (angle * 0.1)  # Coordenada X más extendida
+            y = 8.0 * (0.1 * i * 0.8)  # Coordenada Y
+            z = i * 1.5  # Altura por residuo
+            
+            # Línea de átomo CA en formato mmCIF
+            atom_line = f"ATOM {i+1:6d} C CA . {aa_code} A 1 {i+1:4d} ? {x:8.3f} {y:8.3f} {z:8.3f} 1.00 50.00 ? {i+1:4d} {aa_code} A CA 1"
             atoms.append(atom_line)
-            atom_id += 1
         
-        return header + "\n".join(atoms) + "\n#\n"
+        # Unir todo el contenido
+        cif_content += "\n".join(atoms) + "\n#\n"
+        
+        return cif_content
     
     def _generate_demo_pdb_content(self, sequence: str, job_name: str) -> str:
         """
