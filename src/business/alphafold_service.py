@@ -12,6 +12,9 @@ from typing import Dict, Optional, Tuple, Any
 from datetime import datetime
 from pathlib import Path
 
+# Importar la nueva clase de base de datos
+from ..data.protein_database import ProteinDatabase
+
 class AlphaFoldIntegrationError(Exception):
     """Excepción personalizada para errores de integración con AlphaFold"""
     pass
@@ -37,6 +40,10 @@ class AlphaFoldService:
         
         # Crear directorio de modelos si no existe
         Path(self.models_directory).mkdir(parents=True, exist_ok=True)
+        
+        # Inicializar base de datos de proteínas conocidas
+        self.protein_db = ProteinDatabase()
+        print(f"🧬 Proteínas conocidas disponibles: {len(self.protein_db.proteins)}")
     
     def predict_structure(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         """
@@ -707,49 +714,38 @@ SOURCE   3 EXPRESSION_SYSTEM: ALPHAFOLD PREDICTION;
         Returns:
             URL del archivo CIF si encuentra una coincidencia, None si no
         """
-        # Base de datos de proteínas conocidas con sus UniProt IDs
-        known_proteins = {
-            # Hemoglobina humana (subunidades) - secuencias exactas
-            'MVHLTPEEKSAVTALWGKVNVDEVGGEALGRLLVVYPWTQRFFESFGDLSTPDAVMGNPKVKAHGKKVLGAFSDGLAHLDNLKGTFATLSELHCDKLHVDPENFRLLGNVLVCVLAHHFGKEFTPPVQAAYQKVVAGVANALAHKYH': 'P68871',  # Hemoglobina subunidad beta
-            'MVLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNALSALSDLHAHKLRVDPVNFKLLSHCLLVTLAAHLPAEFTPAVHASLDKFLASVSTVLTSKYR': 'P69905',  # Hemoglobina subunidad alfa
-            # Insulina humana
-            'MALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTPKTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQKRGIVEQCCTSICSLYQLENYCN': 'P01308',
-            # Lisozima
-            'MKALIVLGLVLLSVTVQGKVFERCELARTLKRLGMDGYRGISLANWMCLAKWESGYNTRATNYNAGDRSTDYGIFQINSRYWCNDGKTPGAVNACHLSCSALLQDNIADAVACAKRVVRDPQGIRAWVAWRNRCQNRDVRQYVQGCGV': 'P61626',
-        }
+        # Buscar coincidencia exacta primero
+        exact_match = self.protein_db.search_exact_match(sequence)
+        if exact_match:
+            uniprot_id, protein_data = exact_match
+            print(f"✅ Coincidencia EXACTA encontrada: {protein_data['name']} (UniProt: {uniprot_id})")
+            try:
+                url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        return data[0].get('cifUrl'), 'exact'
+            except Exception as e:
+                print(f"⚠️ Error accediendo a AlphaFold API para {uniprot_id}: {e}")
         
-        # Buscar SOLO coincidencias exactas - no aproximadas
-        for known_seq, uniprot_id in known_proteins.items():
-            if sequence == known_seq:
-                print(f"✅ Coincidencia EXACTA encontrada para UniProt ID: {uniprot_id}")
-                try:
-                    url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-                    response = requests.get(url, timeout=10)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data:
-                            # Para coincidencias exactas, marcar como estructura real
-                            return data[0].get('cifUrl'), 'exact'
-                except:
-                    continue
-        
-        # Para secuencias que no son exactamente conocidas, verificar si hay alta similitud (>95%)
-        for known_seq, uniprot_id in known_proteins.items():
-            similarity = self._calculate_sequence_similarity(sequence, known_seq)
-            if similarity > 0.95:  # Más del 95% de similitud
-                print(f"✅ Coincidencia de alta similitud ({similarity:.1%}) encontrada para UniProt ID: {uniprot_id}")
-                try:
-                    url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-                    response = requests.get(url, timeout=10)
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data:
-                            # Para similitud alta pero no exacta, marcar como similar y pasar la secuencia conocida
-                            return data[0].get('cifUrl'), 'similar', similarity, known_seq
-                except:
-                    continue
+        # Buscar secuencias similares (>95% similitud)
+        similar_matches = self.protein_db.search_similar_sequences(sequence, min_similarity=0.95)
+        if similar_matches:
+            uniprot_id, protein_data, similarity = similar_matches[0]  # Tomar la más similar
+            print(f"✅ Coincidencia de alta similitud ({similarity:.1%}) encontrada: {protein_data['name']} (UniProt: {uniprot_id})")
+            try:
+                url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data:
+                        return data[0].get('cifUrl'), 'similar', similarity, protein_data['sequence']
+            except Exception as e:
+                print(f"⚠️ Error accediendo a AlphaFold API para {uniprot_id}: {e}")
         
         print(f"❌ No se encontró estructura conocida para esta secuencia específica")
+        print(f"📊 Base de datos consultada: {len(self.protein_db.proteins)} proteínas")
         return None, 'none'
 
     def _download_real_alphafold_structure(self, cif_url: str, job_name: str) -> str:
