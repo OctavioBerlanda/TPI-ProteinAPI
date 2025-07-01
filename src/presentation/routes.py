@@ -225,6 +225,144 @@ def get_structural_analysis(comparison_id):
     
     return jsonify(analysis)
 
+@main_bp.route('/test/simple.cif')
+def serve_simple_test_cif():
+    """Endpoint para servir un archivo CIF de prueba súper simple"""
+    import os
+    from flask import send_file, abort
+    
+    test_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'test_simple.cif')
+    
+    if not os.path.exists(test_file):
+        abort(404)
+    
+    print(f"✅ Sirviendo archivo CIF de prueba: {test_file}", flush=True)
+    
+    response = make_response(send_file(test_file, as_attachment=False, mimetype='chemical/x-cif'))
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
+
+@main_bp.route('/test/simple.pdb')
+def serve_simple_test_pdb():
+    """Endpoint para servir un archivo PDB de prueba súper simple"""
+    import os
+    from flask import send_file, abort
+    
+    test_file = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'test_simple.pdb')
+    
+    if not os.path.exists(test_file):
+        abort(404)
+    
+    print(f"✅ Sirviendo archivo PDB de prueba: {test_file}", flush=True)
+    
+    response = make_response(send_file(test_file, as_attachment=False, mimetype='chemical/x-pdb'))
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
+
+@main_bp.route('/models/alphafold/<path:filename>')
+def serve_alphafold_models(filename):
+    """Endpoint para servir archivos de modelos AlphaFold directamente"""
+    import os
+    from flask import send_file, abort
+    
+    # Construir ruta al archivo
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    file_path = os.path.join(project_root, 'models', 'alphafold', filename)
+    
+    if not os.path.exists(file_path):
+        abort(404)
+    
+    print(f"✅ Sirviendo archivo AlphaFold: {file_path}", flush=True)
+    
+    response = make_response(send_file(file_path, as_attachment=False, mimetype='chemical/x-cif'))
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    
+    return response
+
+@main_bp.route('/api/comparison/<int:comparison_id>/model/<model_type>/view.pdb')
+def get_model_file_as_pdb(comparison_id, model_type):
+    """API endpoint para servir archivos de modelos convertidos a PDB para mejor compatibilidad con NGL"""
+    import os
+    from flask import request, abort
+    
+    # Handle CORS preflight request
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
+    
+    details = comparison_manager.get_comparison_details(comparison_id)
+    if not details:
+        abort(404)
+    
+    comparison_data = details.get('comparison', {})
+    model_path = None
+    if model_type == 'original':
+        model_path = comparison_data.get('original_model_path')
+    elif model_type == 'mutated':
+        model_path = comparison_data.get('mutated_model_path')
+    
+    if not model_path:
+        abort(404)
+    
+    # Resolver ruta absoluta
+    if not os.path.isabs(model_path):
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        model_path = os.path.join(project_root, model_path)
+    
+    if not os.path.exists(model_path):
+        print(f"❌ Archivo no encontrado: {model_path}", flush=True)
+        abort(404)
+    
+    print(f"🔄 Convirtiendo CIF a PDB: {model_path}", flush=True)
+    
+    try:
+        # Convertir CIF a PDB usando BioPython
+        from Bio.PDB import MMCIFParser, PDBIO
+        import tempfile
+        
+        # Parsear CIF
+        parser = MMCIFParser(QUIET=True)
+        structure = parser.get_structure('temp', model_path)
+        
+        # Crear archivo PDB temporal
+        pdb_io = PDBIO()
+        pdb_io.set_structure(structure)
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as temp_pdb:
+            pdb_io.save(temp_pdb.name)
+            
+            print(f"✅ CIF convertido a PDB exitosamente", flush=True)
+            
+            response = make_response(send_file(temp_pdb.name, as_attachment=False, mimetype='chemical/x-pdb'))
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+            
+            # Limpiar archivo temporal después del envío
+            @response.call_on_close
+            def cleanup():
+                try:
+                    os.unlink(temp_pdb.name)
+                except:
+                    pass
+            
+            return response
+            
+    except Exception as e:
+        print(f"❌ Error convirtiendo CIF a PDB: {e}", flush=True)
+        abort(500)
+
 # Manejo de errores
 @main_bp.errorhandler(404)
 def not_found_error(error):

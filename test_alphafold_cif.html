@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test AlphaFold CIF Files</title>
+  <script src="https://unpkg.com/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+  <style>
+    #viewport {
+      width: 800px;
+      height: 600px;
+      border: 2px solid #333;
+      margin: 20px auto;
+      display: block;
+    }
+
+    .controls {
+      text-align: center;
+      margin: 20px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+
+    .log {
+      background: #f0f0f0;
+      padding: 10px;
+      margin: 20px;
+      font-family: monospace;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🧬 Test AlphaFold CIF Files</h1>
+
+  <div class="controls">
+    <button onclick="testSimulatedCIF()">🧪 Test Simulated CIF</button>
+    <button onclick="testRealAlphaFoldCIF()">🔬 Test Real AlphaFold CIF</button>
+    <button onclick="testServerEndpoint()">🖥️ Test Server CIF</button>
+    <button onclick="testServerPDB()">🔄 Test Server PDB (Converted)</button>
+    <button onclick="testDirectFile()">📁 Test Direct File</button>
+    <button onclick="testAlphaFoldDirectURL()">🔗 Test Direct AlphaFold URL</button>
+    <button onclick="testBioStructureAPI()">🌐 Test BioStructure API</button>
+    <button onclick="clearViewer()">🗑️ Limpiar</button>
+  </div>
+
+  <div id="viewport"></div>
+
+  <div class="log" id="log">
+    <strong>📋 Log de eventos:</strong><br>
+    Iniciando NGL Viewer...<br>
+  </div>
+
+  <script>
+    let stage;
+
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += new Date().toLocaleTimeString() + ": " + message + "<br>";
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        // Inicializar NGL Stage
+        stage = new NGL.Stage('viewport');
+        log('✅ NGL Stage inicializado correctamente');
+
+        // Configurar el stage
+        stage.setParameters({
+          backgroundColor: 'white'
+        });
+
+        log('⚙️ Stage configurado con fondo blanco');
+
+      } catch (error) {
+        log('❌ Error inicializando NGL: ' + error.message);
+      }
+    });
+
+    function testSimulatedCIF() {
+      log('🧪 Test: Cargando CIF simulado...');
+
+      const url = 'http://localhost:5000/test/simple.cif';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      stage.loadFile(url).then(function (component) {
+        log('✅ CIF simulado cargado exitosamente');
+
+        component.addRepresentation('cartoon', {
+          color: 'chainid'
+        });
+
+        component.autoView();
+        log('🎨 Representación cartoon añadida');
+
+      }).catch(function (error) {
+        log('❌ Error cargando CIF simulado: ' + error);
+        log('🔍 Mensaje de error: ' + error.message);
+      });
+    }
+
+    function testRealAlphaFoldCIF() {
+      log('🔬 Test: Cargando CIF real de AlphaFold...');
+
+      const url = 'http://localhost:5000/models/alphafold/Hemoglobina Beta E6V_original_1751376457.cif';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      // First test if the file is accessible
+      fetch(url)
+        .then(response => {
+          log('📡 HTTP Status: ' + response.status);
+          log('📡 Content-Type: ' + response.headers.get('content-type'));
+
+          if (!response.ok) {
+            throw new Error('HTTP ' + response.status);
+          }
+
+          return response.text();
+        })
+        .then(content => {
+          log('✅ Archivo CIF obtenido, tamaño: ' + content.length + ' caracteres');
+          log('🔍 Primeras líneas: ' + content.substring(0, 200) + '...');
+
+          // Now try to load with NGL
+          return stage.loadFile(url, {
+            ext: "cif",
+            firstModelOnly: true
+          });
+        })
+        .then(function (component) {
+          log('✅ CIF real de AlphaFold cargado exitosamente en NGL');
+          log('📊 Componente info: ' + component.type);
+
+          if (component.structure) {
+            log('📊 Átomos: ' + component.structure.atomCount);
+            log('📊 Residuos: ' + component.structure.residueCount);
+            log('📊 Cadenas: ' + component.structure.chainCount);
+          }
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Representación cartoon añadida');
+
+        })
+        .catch(function (error) {
+          log('❌ Error cargando CIF real: ' + error);
+          log('🔍 Mensaje de error: ' + error.message);
+          log('🔍 Stack: ' + (error.stack || 'No stack available'));
+
+          // Try fallback with different options
+          log('🔄 Intentando con opciones alternativas...');
+
+          stage.loadFile(url)
+            .then(component => {
+              log('✅ CIF cargado con opciones por defecto');
+              component.addRepresentation('cartoon', { color: 'chainid' });
+              component.autoView();
+            })
+            .catch(fallbackError => {
+              log('❌ Fallback también falló: ' + fallbackError.message);
+            });
+        });
+    }
+
+    function testServerEndpoint() {
+      log('🖥️ Test: Probando endpoint del servidor Flask...');
+
+      // Assuming we have comparison ID 1 or 2 in the database
+      const url = 'http://localhost:5000/api/comparison/1/model/original/view.cif';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      fetch(url)
+        .then(response => {
+          log('📡 Server Response Status: ' + response.status);
+          log('📡 Content-Type: ' + response.headers.get('content-type'));
+          log('📡 CORS Headers: ' + response.headers.get('access-control-allow-origin'));
+
+          if (!response.ok) {
+            throw new Error('Server returned HTTP ' + response.status);
+          }
+
+          return response.text();
+        })
+        .then(content => {
+          log('✅ Respuesta del servidor obtenida, tamaño: ' + content.length + ' caracteres');
+
+          // Check if it looks like a valid CIF
+          if (content.includes('data_') && content.includes('_atom_site')) {
+            log('✅ El contenido parece ser un CIF válido');
+          } else {
+            log('⚠️ El contenido no parece ser un CIF válido');
+          }
+
+          // Now try to load with NGL
+          return stage.loadFile(url);
+        })
+        .then(function (component) {
+          log('✅ CIF del servidor cargado exitosamente en NGL');
+
+          if (component.structure) {
+            log('📊 Átomos: ' + component.structure.atomCount);
+            log('📊 Residuos: ' + component.structure.residueCount);
+          }
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Representación cartoon añadida');
+
+        })
+        .catch(function (error) {
+          log('❌ Error con endpoint del servidor: ' + error);
+          log('🔍 Mensaje de error: ' + error.message);
+        });
+    }
+
+    function testServerPDB() {
+      log('🔄 Test: Probando conversión CIF→PDB en servidor...');
+
+      // Test the new PDB conversion endpoint
+      const url = 'http://localhost:5000/api/comparison/1/model/original/view.pdb';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      fetch(url)
+        .then(response => {
+          log('📡 PDB Server Response Status: ' + response.status);
+          log('📡 Content-Type: ' + response.headers.get('content-type'));
+
+          if (!response.ok) {
+            throw new Error('Server returned HTTP ' + response.status);
+          }
+
+          return response.text();
+        })
+        .then(content => {
+          log('✅ PDB convertido obtenido, tamaño: ' + content.length + ' caracteres');
+          log('🔍 Primeras líneas: ' + content.substring(0, 200) + '...');
+
+          // Now try to load with NGL
+          return stage.loadFile(url);
+        })
+        .then(function (component) {
+          log('✅ PDB convertido cargado exitosamente en NGL');
+
+          if (component.structure) {
+            log('📊 Átomos: ' + component.structure.atomCount);
+            log('📊 Residuos: ' + component.structure.residueCount);
+          }
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Representación cartoon añadida - ¡Debería mostrar estructura plegada!');
+
+        })
+        .catch(function (error) {
+          log('❌ Error con PDB convertido: ' + error);
+          log('🔍 Mensaje de error: ' + error.message);
+        });
+    }
+
+    function testDirectFile() {
+      log('📁 Test: Probando archivo directo via ruta estática...');
+
+      const url = 'http://localhost:5000/models/alphafold/Hemoglobina%20Beta%20E6V_original_1751376457.cif';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      stage.loadFile(url)
+        .then(function (component) {
+          log('✅ Archivo directo cargado exitosamente');
+
+          if (component.structure) {
+            log('📊 Átomos: ' + component.structure.atomCount);
+            log('📊 Residuos: ' + component.structure.residueCount);
+          }
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Representación cartoon añadida');
+
+        })
+        .catch(function (error) {
+          log('❌ Error con archivo directo: ' + error);
+          log('🔍 Mensaje de error: ' + error.message);
+        });
+    }
+
+    function testAlphaFoldDirectURL() {
+      log('🔗 Test: Cargando desde URL directa de AlphaFold DB...');
+
+      // URL directa al modelo de hemoglobina de AlphaFold
+      const url = 'https://alphafold.ebi.ac.uk/files/AF-P68871-F1-model_v4.cif';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      stage.loadFile(url).then(function (component) {
+        log('✅ CIF directo de AlphaFold DB cargado exitosamente');
+
+        component.addRepresentation('cartoon', {
+          color: 'chainid'
+        });
+
+        component.autoView();
+        log('🎨 Representación cartoon añadida');
+
+      }).catch(function (error) {
+        log('❌ Error cargando URL directa: ' + error);
+        log('🔍 Mensaje de error: ' + error.message);
+      });
+    }
+
+    function testBioStructureAPI() {
+      log('🌐 Test: Cargando mediante BioStructure API...');
+
+      // Usar la API de estructura para hemoglobina beta
+      const url = 'https://www.ebi.ac.uk/pdbe/entry-files/pdb1aby.ent';
+      log('🔗 URL: ' + url);
+
+      stage.removeAllComponents();
+
+      stage.loadFile(url).then(function (component) {
+        log('✅ Estructura desde PDB-e cargada exitosamente');
+
+        component.addRepresentation('cartoon', {
+          color: 'chainid'
+        });
+
+        component.autoView();
+        log('🎨 Representación cartoon añadida');
+
+      }).catch(function (error) {
+        log('❌ Error cargando desde PDB-e: ' + error);
+        log('🔍 Mensaje de error: ' + error.message);
+      });
+    }
+
+    function clearViewer() {
+      log('🗑️ Limpiando viewer...');
+      stage.removeAllComponents();
+      log('✅ Viewer limpiado');
+    }
+  </script>
+</body>
+
+</html>

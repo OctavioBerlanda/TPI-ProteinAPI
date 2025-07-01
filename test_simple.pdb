@@ -1,0 +1,7 @@
+HEADER    TEST PROTEIN                            01-JUL-25   TEST            
+ATOM      1  CA  ALA A   1      20.154  16.967  12.365  1.00 20.00           C  
+ATOM      2  CA  VAL A   2      23.654  17.967  12.365  1.00 20.00           C  
+ATOM      3  CA  GLY A   3      27.154  18.967  12.365  1.00 20.00           C  
+ATOM      4  CA  LEU A   4      30.654  19.967  12.365  1.00 20.00           C  
+ATOM      5  CA  ALA A   5      34.154  20.967  12.365  1.00 20.00           C  
+END                                                                             

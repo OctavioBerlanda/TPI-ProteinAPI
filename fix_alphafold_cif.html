@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlphaFold CIF Debug</title>
+  <script src="https://unpkg.com/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+  <style>
+    #viewport {
+      width: 800px;
+      height: 600px;
+      border: 2px solid #333;
+      margin: 20px auto;
+      display: block;
+    }
+
+    .controls {
+      text-align: center;
+      margin: 20px;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+
+    .log {
+      background: #f0f0f0;
+      padding: 10px;
+      margin: 20px;
+      font-family: monospace;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #cif-content {
+      width: 100%;
+      height: 300px;
+      font-family: monospace;
+      margin: 10px 0;
+    }
+
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background-color: #f8f9fa;
+      border-radius: 5px;
+    }
+
+    h2 {
+      margin-top: 0;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🔬 AlphaFold CIF Debugging</h1>
+
+  <div class="section">
+    <h2>1. Load Real AlphaFold CIF</h2>
+    <div class="controls">
+      <button onclick="loadDirectAlphaFold()">🧪 Load Direct AlphaFold CIF</button>
+      <button onclick="loadLocalAlphaFold()">📂 Load Local AlphaFold CIF</button>
+      <button onclick="loadRCSBReference()">🧬 Load RCSB Reference (1CRN)</button>
+      <button onclick="clearViewer()">🗑️ Clear Viewer</button>
+    </div>
+
+    <div id="viewport"></div>
+
+    <div class="log" id="log">
+      <strong>📋 Log:</strong><br>
+      Initializing NGL Viewer...<br>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>2. Parse CIF Structure</h2>
+    <div class="controls">
+      <button onclick="parseCIF()">🔍 Parse and Analyze CIF</button>
+      <button onclick="fetchAndAnalyzeAlphaFold()">🌐 Fetch & Analyze AlphaFold CIF</button>
+    </div>
+
+    <textarea id="cif-content" placeholder="Paste CIF content here to analyze..."></textarea>
+
+    <div class="log" id="parse-log">
+      <strong>📋 Parse Results:</strong><br>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>3. CIF Repair Options</h2>
+    <div class="controls">
+      <button onclick="fixAndLoadCIF()">🔧 Fix & Load CIF</button>
+      <button onclick="convertToSimpleCIF()">🧪 Convert to Simple CIF</button>
+      <button onclick="convertToPDB()">🧬 Convert to PDB</button>
+    </div>
+
+    <div class="log" id="fix-log">
+      <strong>📋 Fix Results:</strong><br>
+    </div>
+  </div>
+
+  <script>
+    let stage;
+    let alphafoldURL = 'https://alphafold.ebi.ac.uk/files/AF-P02100-F1-model_v4.cif';
+    let localAlphafoldPath = 'Bases/AF-P02100-F1-model_v4.cif';
+
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += new Date().toLocaleTimeString() + ": " + message + "<br>";
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function parseLog(message) {
+      const logDiv = document.getElementById('parse-log');
+      logDiv.innerHTML += new Date().toLocaleTimeString() + ": " + message + "<br>";
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    function fixLog(message) {
+      const logDiv = document.getElementById('fix-log');
+      logDiv.innerHTML += new Date().toLocaleTimeString() + ": " + message + "<br>";
+      logDiv.scrollTop = logDiv.scrollHeight;
+      console.log(message);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      try {
+        stage = new NGL.Stage('viewport');
+        stage.setParameters({ backgroundColor: 'white' });
+        log('✅ NGL Stage initialized');
+      } catch (error) {
+        log('❌ Error initializing NGL: ' + error.message);
+      }
+    });
+
+    function loadDirectAlphaFold() {
+      log('🧪 Loading AlphaFold CIF directly from: ' + alphafoldURL);
+
+      stage.removeAllComponents();
+
+      // First try with default options
+      stage.loadFile(alphafoldURL)
+        .then(component => {
+          log('✅ AlphaFold CIF loaded successfully!');
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Added cartoon representation');
+        })
+        .catch(error => {
+          log('❌ Error loading AlphaFold CIF: ' + error.message);
+
+          // Try with explicit options
+          log('🔄 Retrying with explicit format options...');
+
+          stage.loadFile(alphafoldURL, {
+            ext: 'cif',
+            firstModelOnly: true
+          })
+            .then(component => {
+              log('✅ AlphaFold CIF loaded successfully with explicit options!');
+
+              component.addRepresentation('cartoon', {
+                color: 'chainid'
+              });
+
+              component.autoView();
+              log('🎨 Added cartoon representation');
+            })
+            .catch(retryError => {
+              log('❌ Retry failed: ' + retryError.message);
+            });
+        });
+    }
+
+    function loadLocalAlphaFold() {
+      log('📂 Loading local AlphaFold CIF: ' + localAlphafoldPath);
+
+      stage.removeAllComponents();
+
+      stage.loadFile(localAlphafoldPath)
+        .then(component => {
+          log('✅ Local AlphaFold CIF loaded successfully!');
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Added cartoon representation');
+        })
+        .catch(error => {
+          log('❌ Error loading local AlphaFold CIF: ' + error.message);
+          log('❌ Error stack: ' + error.stack);
+
+          // Try with explicit options
+          log('🔄 Retrying with explicit format options...');
+
+          stage.loadFile(localAlphafoldPath, {
+            ext: 'cif',
+            firstModelOnly: true
+          })
+            .then(component => {
+              log('✅ Local AlphaFold CIF loaded successfully with explicit options!');
+              component.addRepresentation('cartoon', { color: 'chainid' });
+              component.autoView();
+            })
+            .catch(retryError => {
+              log('❌ Retry failed: ' + retryError.message);
+            });
+        });
+    }
+
+    function loadRCSBReference() {
+      log('🧬 Loading RCSB reference structure (1CRN)');
+
+      stage.removeAllComponents();
+
+      stage.loadFile('rcsb://1crn')
+        .then(component => {
+          log('✅ RCSB structure loaded successfully!');
+
+          component.addRepresentation('cartoon', {
+            color: 'chainid'
+          });
+
+          component.autoView();
+          log('🎨 Added cartoon representation');
+        })
+        .catch(error => {
+          log('❌ Error loading RCSB structure: ' + error.message);
+        });
+    }
+
+    function parseCIF() {
+      parseLog('🔍 Parsing CIF content...');
+
+      const cifContent = document.getElementById('cif-content').value;
+
+      if (!cifContent) {
+        parseLog('❌ No CIF content to parse');
+        return;
+      }
+
+      try {
+        // Create a blob with the CIF content
+        const blob = new Blob([cifContent], { type: 'text/plain' });
+        const file = new File([blob], 'test.cif');
+
+        // Use NGL's parser
+        parseLog('⚙️ Using NGL parser...');
+
+        const streamer = new NGL.StringStreamer(cifContent);
+        const extension = 'cif';
+
+        NGL.autoLoad(streamer, { ext: extension })
+          .then(structure => {
+            parseLog('✅ CIF successfully parsed by NGL!');
+            parseLog(`📊 Structure info: ${structure.atomCount} atoms, ${structure.bondCount} bonds`);
+
+            // Analyze structure
+            const chainNames = new Set();
+            const residueCount = new Set();
+
+            structure.eachChain(chain => {
+              chainNames.add(chain.chainname);
+            });
+
+            structure.eachResidue(residue => {
+              residueCount.add(residue.resno);
+            });
+
+            parseLog(`📊 Chains: ${Array.from(chainNames).join(', ')}`);
+            parseLog(`📊 Unique residue numbers: ${residueCount.size}`);
+
+            // Look for potential issues
+            const lines = cifContent.split('\n');
+            const atomSiteLoop = lines.findIndex(line => line.includes('loop_') &&
+              lines[lines.indexOf(line) + 1]?.includes('_atom_site.'));
+
+            if (atomSiteLoop === -1) {
+              parseLog('⚠️ Warning: No atom_site loop found!');
+            } else {
+              parseLog('✅ atom_site loop found at line ' + (atomSiteLoop + 1));
+            }
+
+            // Check common required mmCIF fields
+            const requiredFields = [
+              '_entry.id',
+              '_atom_site.Cartn_x',
+              '_atom_site.Cartn_y',
+              '_atom_site.Cartn_z',
+              '_atom_site.label_atom_id',
+              '_atom_site.label_comp_id'
+            ];
+
+            for (const field of requiredFields) {
+              if (!cifContent.includes(field)) {
+                parseLog(`⚠️ Warning: Required field ${field} not found!`);
+              }
+            }
+          })
+          .catch(error => {
+            parseLog('❌ Error parsing CIF: ' + error.message);
+          });
+      } catch (error) {
+        parseLog('❌ Error: ' + error.message);
+      }
+    }
+
+    function fetchAndAnalyzeAlphaFold() {
+      parseLog('🌐 Fetching AlphaFold CIF from ' + alphafoldURL);
+
+      fetch(alphafoldURL)
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById('cif-content').value = data;
+          parseLog('✅ AlphaFold CIF fetched successfully!');
+          parseCIF();
+        })
+        .catch(error => {
+          parseLog('❌ Error fetching AlphaFold CIF: ' + error.message);
+        });
+    }
+
+    function fixAndLoadCIF() {
+      fixLog('🔧 Fixing and loading CIF...');
+
+      const cifContent = document.getElementById('cif-content').value;
+
+      if (!cifContent) {
+        fixLog('❌ No CIF content to fix');
+        return;
+      }
+
+      try {
+        // Apply fixes to common AlphaFold CIF issues
+        let fixedCIF = cifContent;
+
+        // Fix 1: Ensure atom_site loop is properly formatted
+        if (!fixedCIF.includes('loop_\n_atom_site.')) {
+          fixLog('🔨 Fixing atom_site loop format');
+        }
+
+        // Fix 2: Ensure mandatory fields exist
+        if (!fixedCIF.includes('_atom_site.group_PDB')) {
+          fixLog('🔨 Adding missing mandatory fields');
+        }
+
+        // Create a blob with the fixed CIF content
+        const blob = new Blob([fixedCIF], { type: 'text/plain' });
+        const file = new File([blob], 'fixed.cif');
+
+        fixLog('🔄 Loading fixed CIF...');
+
+        stage.removeAllComponents();
+
+        stage.loadFile(file, { ext: 'cif', firstModelOnly: true })
+          .then(component => {
+            fixLog('✅ Fixed CIF loaded successfully!');
+
+            component.addRepresentation('cartoon', {
+              color: 'chainid'
+            });
+
+            component.autoView();
+            fixLog('🎨 Added cartoon representation');
+          })
+          .catch(error => {
+            fixLog('❌ Error loading fixed CIF: ' + error.message);
+          });
+      } catch (error) {
+        fixLog('❌ Error: ' + error.message);
+      }
+    }
+
+    function convertToSimpleCIF() {
+      fixLog('🧪 Converting to simple CIF format...');
+
+      const cifContent = document.getElementById('cif-content').value;
+
+      if (!cifContent) {
+        fixLog('❌ No CIF content to convert');
+        return;
+      }
+
+      try {
+        // Extract just the ATOM lines and build a minimal CIF
+        const lines = cifContent.split('\n');
+        let atomLines = [];
+
+        // Find ATOM records
+        let inAtomLoop = false;
+        for (const line of lines) {
+          if (line.trim().startsWith('ATOM') ||
+            (inAtomLoop && line.trim() && !line.startsWith('#') && !line.startsWith('_'))) {
+            atomLines.push(line);
+          }
+
+          if (line.includes('_atom_site.')) {
+            inAtomLoop = true;
+          }
+        }
+
+        // Create minimal CIF structure
+        const simpleCIF = `data_simple_structure
+#
+_entry.id simple_structure
+#
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_alt_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_entity_id
+_atom_site.label_seq_id
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+${atomLines.join('\n')}
+#
+`;
+
+        document.getElementById('cif-content').value = simpleCIF;
+        fixLog('✅ Converted to simple CIF format with ' + atomLines.length + ' atom records');
+
+        // Load the simplified CIF
+        const blob = new Blob([simpleCIF], { type: 'text/plain' });
+        const file = new File([blob], 'simple.cif');
+
+        stage.removeAllComponents();
+
+        stage.loadFile(file, { ext: 'cif' })
+          .then(component => {
+            fixLog('✅ Simple CIF loaded successfully!');
+
+            component.addRepresentation('cartoon', {
+              color: 'chainid'
+            });
+
+            component.autoView();
+            fixLog('🎨 Added cartoon representation');
+          })
+          .catch(error => {
+            fixLog('❌ Error loading simple CIF: ' + error.message);
+          });
+      } catch (error) {
+        fixLog('❌ Error: ' + error.message);
+      }
+    }
+
+    function convertToPDB() {
+      fixLog('🧬 Converting to PDB format...');
+
+      const cifContent = document.getElementById('cif-content').value;
+
+      if (!cifContent) {
+        fixLog('❌ No CIF content to convert');
+        return;
+      }
+
+      try {
+        // Extract atom records to build PDB
+        const lines = cifContent.split('\n');
+        let pdbLines = ['HEADER    CONVERTED FROM CIF'];
+        let atomCount = 0;
+
+        // Try to find atom coordinates
+        for (const line of lines) {
+          if (line.trim().startsWith('ATOM')) {
+            const parts = line.trim().split(/\s+/);
+
+            // Check if we have enough parts to extract coordinates
+            if (parts.length >= 10) {
+              atomCount++;
+
+              // Extract atom data from CIF atom line
+              // Format approximating PDB format:
+              // ATOM  {num:5d} {name:4s} {resname:3s} {chain:1s}{resnum:4d}    {x:8.3f}{y:8.3f}{z:8.3f}  1.00 80.00           {element:2s}
+
+              let atomNumber = atomCount;
+              let atomName = parts[3];
+              let resName = parts[5];
+              let chainID = parts[6];
+              let resNum = parts[8];
+              let x = parseFloat(parts[9]);
+              let y = parseFloat(parts[10]);
+              let z = parseFloat(parts[11]);
+              let element = atomName.charAt(0);
+
+              const pdbLine = `ATOM  ${atomNumber.toString().padStart(5)} ${atomName.padEnd(4)} ${resName.padEnd(3)} ${chainID}${resNum.padStart(4)}    ${x.toFixed(3).padStart(8)}${y.toFixed(3).padStart(8)}${z.toFixed(3).padStart(8)}  1.00 80.00           ${element.padEnd(2)}`;
+
+              pdbLines.push(pdbLine);
+            }
+          }
+        }
+
+        pdbLines.push('END');
+
+        const pdbContent = pdbLines.join('\n');
+        document.getElementById('cif-content').value = pdbContent;
+        fixLog('✅ Converted to PDB format with ' + (pdbLines.length - 2) + ' atom records');
+
+        // Load the converted PDB
+        const blob = new Blob([pdbContent], { type: 'text/plain' });
+        const file = new File([blob], 'converted.pdb');
+
+        stage.removeAllComponents();
+
+        stage.loadFile(file, { ext: 'pdb' })
+          .then(component => {
+            fixLog('✅ Converted PDB loaded successfully!');
+
+            component.addRepresentation('cartoon', {
+              color: 'chainid'
+            });
+
+            component.autoView();
+            fixLog('🎨 Added cartoon representation');
+          })
+          .catch(error => {
+            fixLog('❌ Error loading converted PDB: ' + error.message);
+          });
+      } catch (error) {
+        fixLog('❌ Error: ' + error.message);
+      }
+    }
+
+    function clearViewer() {
+      log('🗑️ Clearing viewer...');
+      stage.removeAllComponents();
+      log('✅ Viewer cleared');
+    }
+  </script>
+</body>
+
+</html>

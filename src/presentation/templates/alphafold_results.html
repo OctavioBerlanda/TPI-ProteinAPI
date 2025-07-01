@@ -430,8 +430,8 @@
         stage = new NGL.Stage("protein-viewer");
         console.log('✅ NGL Stage created successfully');
 
-        $('#loading-message').hide();
-        console.log('🔄 Loading spinner hidden');
+        // NO ocultar el mensaje de carga aquí, solo al final
+        console.log('⚙️ Stage created, keeping loading message visible until model loads');
 
         // Configurar el stage
         stage.setParameters({
@@ -501,17 +501,40 @@
         const loadTime = performance.now() - startTime;
         console.log(`✅ Modelo original cargado en ${loadTime.toFixed(2)}ms`);
 
+        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+          console.log('🔄 Loading element completely removed from DOM');
+        }
+
         currentComponents.push(component);
+
+        // Mejorar la visualización para estructuras CA-only
         component.addRepresentation("cartoon", {
           color: "chainid",
-          opacity: 0.8
+          opacity: 0.8,
+          radius: 0.5,  // Hacer el cartoon más grueso
+          smoothSheet: true
         });
+
+        // Añadir representación de bolas para los CA
         component.addRepresentation("ball+stick", {
-          sele: "hetero",
-          color: "element"
+          sele: "all",  // Mostrar todos los átomos
+          color: "chainid",
+          ballScale: 0.3,
+          stickRadius: 0.1
         });
+
+        // Añadir backbone como línea
+        component.addRepresentation("line", {
+          color: "chainid",
+          linewidth: 3,
+          opacity: 0.6
+        });
+
         component.autoView();
-        console.log('✅ Representaciones añadidas al modelo original');
+        console.log('✅ Representaciones mejoradas añadidas al modelo original');
       }).catch(function (error) {
         console.error('❌ Error cargando modelo original:', error);
         console.error('URL que falló:', originalModelUrl);
@@ -533,17 +556,40 @@
         const loadTime = performance.now() - startTime;
         console.log(`✅ Modelo mutado cargado en ${loadTime.toFixed(2)}ms`);
 
+        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+          console.log('🔄 Loading element completely removed from DOM');
+        }
+
         currentComponents.push(component);
+
+        // Mejorar la visualización para estructuras CA-only
         component.addRepresentation("cartoon", {
           color: "chainid",
-          opacity: 0.8
+          opacity: 0.8,
+          radius: 0.5,  // Hacer el cartoon más grueso
+          smoothSheet: true
         });
+
+        // Añadir representación de bolas para los CA
         component.addRepresentation("ball+stick", {
-          sele: "hetero",
-          color: "element"
+          sele: "all",  // Mostrar todos los átomos
+          color: "chainid",
+          ballScale: 0.3,
+          stickRadius: 0.1
         });
+
+        // Añadir backbone como línea
+        component.addRepresentation("line", {
+          color: "chainid",
+          linewidth: 3,
+          opacity: 0.6
+        });
+
         component.autoView();
-        console.log('✅ Representaciones añadidas al modelo mutado');
+        console.log('✅ Representaciones mejoradas añadidas al modelo mutado');
       }).catch(function (error) {
         console.error('❌ Error cargando modelo mutado:', error);
         console.error('URL que falló:', mutatedModelUrl);
@@ -582,6 +628,14 @@
           color: "element"
         });
         stage.autoView();
+
+        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+          console.log('🔄 Loading element completely removed from DOM (both models)');
+        }
+
         console.log('✅ Ambos modelos cargados para comparación');
       }).catch(function (error) {
         console.error('❌ Error cargando modelos para comparación:', error);
