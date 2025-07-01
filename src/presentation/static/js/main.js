@@ -9,6 +9,22 @@ document.addEventListener('DOMContentLoaded', function () {
     return new bootstrap.Tooltip(tooltipTriggerEl);
   });
 
+  // AlphaFold checkbox functionality
+  const alphaFoldCheck = document.getElementById('alphaFoldCheck');
+  const alphaFoldInfo = document.getElementById('alphaFoldInfo');
+
+  if (alphaFoldCheck && alphaFoldInfo) {
+    alphaFoldCheck.addEventListener('change', function () {
+      if (this.checked) {
+        alphaFoldInfo.style.display = 'block';
+        alphaFoldInfo.classList.add('fade-in');
+      } else {
+        alphaFoldInfo.style.display = 'none';
+        alphaFoldInfo.classList.remove('fade-in');
+      }
+    });
+  }
+
   // Sequence validation functions
   const VALID_AMINO_ACIDS = 'ARNDCQEGHILKMFPSTWYV';
 

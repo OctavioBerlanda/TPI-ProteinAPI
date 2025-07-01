@@ -181,7 +181,8 @@ class ComparisonManager:
             
             comparison_id = comparison_result['comparison_id']
             result['comparison_id'] = comparison_id
-            result['data'] = comparison_result['data']
+            # No intentar acceder a 'data' ya que create_comparison no lo retorna
+            result['message'] = comparison_result.get('message', 'Comparación creada')
             
             # 2. Si AlphaFold está habilitado, procesar estructuras 3D
             if enable_alphafold and self.alphafold_service:

@@ -283,3 +283,101 @@ footer {
 .sequence-comparison-dark code {
   color: #e2e8f0;
 }
+
+/* AlphaFold Integration Styles */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alphafold-badge {
+  background: linear-gradient(45deg, #007bff, #0056b3);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.confidence-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: #e9ecef;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.confidence-high {
+  background: #28a745;
+}
+
+.confidence-medium {
+  background: #ffc107;
+}
+
+.confidence-low {
+  background: #dc3545;
+}
+
+.sequence-highlight {
+  background: #fff3cd;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: 0 1px;
+}
+
+.mutation-highlight {
+  background: #f8d7da;
+  color: #721c24;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 3px;
+  margin: 0 1px;
+}
+
+.protein-model-card {
+  border: 2px solid #007bff;
+  transition: box-shadow 0.3s ease;
+}
+
+.protein-model-card:hover {
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+}
+
+.rmsd-display {
+  font-size: 2.5rem;
+  font-weight: bold;
+  text-align: center;
+  margin: 1rem 0;
+}
+
+.rmsd-excellent {
+  color: #28a745;
+}
+
+.rmsd-good {
+  color: #17a2b8;
+}
+
+.rmsd-moderate {
+  color: #ffc107;
+}
+
+.rmsd-poor {
+  color: #dc3545;
+}

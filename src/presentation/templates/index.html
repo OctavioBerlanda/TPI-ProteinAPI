@@ -132,6 +132,38 @@
             </div>
           </div>
 
+          <!-- AlphaFold Option -->
+          <div class="row mb-4">
+            <div class="col-md-12">
+              <div class="card bg-light">
+                <div class="card-body">
+                  <h5 class="card-title text-primary">🧬 Predicción Estructural con AlphaFold</h5>
+                  <div class="form-check">
+                    {{ form.alpha_fold(class="form-check-input", id="alphaFoldCheck") }}
+                    {{ form.alpha_fold.label(class="form-check-label", for="alphaFoldCheck") }}
+                  </div>
+                  <div class="form-text">
+                    <small class="text-muted">
+                      <i class="fas fa-info-circle me-1"></i>
+                      Incluir predicción de estructura 3D usando AlphaFold.
+                      Esto puede aumentar el tiempo de procesamiento pero proporcionará análisis estructural detallado.
+                    </small>
+                  </div>
+                  <div id="alphaFoldInfo" class="alert alert-info mt-2" style="display: none;">
+                    <strong>📊 Análisis incluido:</strong>
+                    <ul class="mb-0 mt-2">
+                      <li>Predicción de estructura 3D para ambas secuencias</li>
+                      <li>Análisis de confianza (pLDDT scores)</li>
+                      <li>Cálculo de RMSD entre estructuras</li>
+                      <li>Evaluación del impacto estructural de las mutaciones</li>
+                      <li>Modelos 3D descargables en formato PDB</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Live Validation Display -->
           <div id="validationDisplay" class="alert" style="display: none;"></div>
 

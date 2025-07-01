@@ -1,0 +1,322 @@
+{% extends "base.html" %}
+
+{% block title %}Resultados AlphaFold - Comparación {{ comparison_id }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      <h1>🧬 Resultados de AlphaFold</h1>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Inicio</a></li>
+          <li class="breadcrumb-item"><a
+              href="{{ url_for('main.comparison_result', comparison_id=comparison_id) }}">Comparación {{ comparison_id
+              }}</a></li>
+          <li class="breadcrumb-item active" aria-current="page">Análisis Estructural</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <!-- Información de la Comparación -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>📊 Información de la Comparación</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <p><strong>Nombre:</strong> {{ comparison.comparison.comparison_name or 'Sin nombre' }}</p>
+              <p><strong>Usuario:</strong> {{ comparison.user.username }}</p>
+              <p><strong>Fecha:</strong> {{ comparison.comparison.created_at.strftime('%d/%m/%Y %H:%M') if
+                comparison.comparison.created_at else 'No disponible' }}</p>
+              <p><strong>Estado:</strong>
+                <span class="badge bg-{{ 'success' if comparison.comparison.status == 'completed' else 'warning' }}">
+                  {{ comparison.comparison.status.title() if comparison.comparison.status else 'Desconocido' }}
+                </span>
+              </p>
+            </div>
+            <div class="col-md-6">
+              <p><strong>Longitud de secuencia:</strong> {{ comparison.comparison.sequence_length or 0 }} aminoácidos
+              </p>
+              <p><strong>Mutaciones:</strong> {{ comparison.comparison.mutation_count or 0 }}</p>
+              <p><strong>Tiempo de procesamiento:</strong> {{ "%.2f"|format(comparison.comparison.processing_time or 0)
+                }} segundos
+              </p>
+              <p><strong>Método de predicción:</strong> AlphaFold</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Análisis de Confianza -->
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h4>🎯 Secuencia Original</h4>
+        </div>
+        <div class="card-body">
+          {% set orig_confidence = comparison.comparison.original_confidence_score or 0 %}
+          {% set orig_badge_class = 'success' if orig_confidence > 80 else 'warning' if orig_confidence > 60 else
+          'danger' %}
+          <p><strong>Confianza promedio:</strong>
+            <span class="badge bg-{{ orig_badge_class }}">
+              {{ "%.1f"|format(orig_confidence) }}%
+            </span>
+          </p>
+          <div class="mb-3">
+            <div class="progress">
+              <div class="progress-bar bg-{{ orig_badge_class }}" role="progressbar" data-width="{{ orig_confidence }}">
+                {{ "%.1f"|format(orig_confidence) }}%
+              </div>
+            </div>
+          </div>
+          <p><strong>Secuencia:</strong></p>
+          <div class="sequence-display">
+            {{ comparison.comparison.original_sequence }}
+          </div>
+          {% if comparison.comparison.original_model_path %}
+          <div class="mt-3">
+            <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='original') }}"
+              class="btn btn-outline-primary btn-sm">
+              📥 Descargar Modelo 3D
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h4>🧪 Secuencia Mutada</h4>
+        </div>
+        <div class="card-body">
+          {% set mut_confidence = comparison.comparison.mutated_confidence_score or 0 %}
+          {% set mut_badge_class = 'success' if mut_confidence > 80 else 'warning' if mut_confidence > 60 else 'danger'
+          %}
+          <p><strong>Confianza promedio:</strong>
+            <span class="badge bg-{{ mut_badge_class }}">
+              {{ "%.1f"|format(mut_confidence) }}%
+            </span>
+          </p>
+          <div class="mb-3">
+            <div class="progress">
+              <div class="progress-bar bg-{{ mut_badge_class }}" role="progressbar" data-width="{{ mut_confidence }}">
+                {{ "%.1f"|format(mut_confidence) }}%
+              </div>
+            </div>
+          </div>
+          <p><strong>Secuencia:</strong></p>
+          <div class="sequence-display">
+            {{ comparison.comparison.mutated_sequence }}
+          </div>
+          {% if comparison.comparison.mutated_model_path %}
+          <div class="mt-3">
+            <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='mutated') }}"
+              class="btn btn-outline-primary btn-sm">
+              📥 Descargar Modelo 3D
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Análisis Estructural -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>🔬 Análisis Estructural Comparativo</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-4">
+              <div class="text-center">
+                <h5>RMSD</h5>
+                <div
+                  class="display-4 text-{{ 'success' if comparison.comparison.rmsd_value and comparison.comparison.rmsd_value < 2.0 else 'warning' if comparison.comparison.rmsd_value and comparison.comparison.rmsd_value < 5.0 else 'danger' }}">
+                  {{ "%.3f"|format(comparison.comparison.rmsd_value or 0) }}
+                </div>
+                <small class="text-muted">Ångströms</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="text-center">
+                <h5>Cambio de Confianza</h5>
+                <div
+                  class="display-4 text-{{ 'success' if (comparison.comparison.mutated_confidence_score or 0) - (comparison.comparison.original_confidence_score or 0) >= 0 else 'danger' }}">
+                  {{ "%+.1f"|format((comparison.comparison.mutated_confidence_score or 0) -
+                  (comparison.comparison.original_confidence_score
+                  or 0)) }}
+                </div>
+                <small class="text-muted">puntos</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="text-center">
+                <h5>Impacto Predicho</h5>
+                {% set confidence_diff = (comparison.comparison.mutated_confidence_score or 0) -
+                (comparison.comparison.original_confidence_score or 0) %}
+                <div class="display-6">
+                  {% if confidence_diff > 5 %}
+                  <span class="text-success">✅ Beneficioso</span>
+                  {% elif confidence_diff > -5 %}
+                  <span class="text-warning">⚪ Neutral</span>
+                  {% else %}
+                  <span class="text-danger">❌ Perjudicial</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {% if comparison.comparison.structural_changes %}
+          <div class="mt-4">
+            <h5>Cambios Estructurales Detectados</h5>
+            <div class="alert alert-info">
+              <pre>{{ comparison.comparison.structural_changes }}</pre>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mutaciones Detectadas -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>🔄 Mutaciones Identificadas</h3>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-primary">
+            <strong>Descripción de mutaciones:</strong> {{ comparison.comparison.mutations_description or 'No
+            disponible' }}
+          </div>
+          <p><strong>Posiciones afectadas:</strong> {{ comparison.comparison.mutation_positions or 'No disponible' }}
+          </p>
+          <p><strong>Número total de mutaciones:</strong> {{ comparison.comparison.mutation_count or 0 }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visualizador 3D -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>🧊 Visualización 3D (Próximamente)</h3>
+        </div>
+        <div class="card-body">
+          <div class="alert alert-info">
+            <h5>🚧 En Desarrollo</h5>
+            <p>La visualización 3D interactiva está en desarrollo. Por ahora puedes descargar los archivos PDB para
+              visualizarlos en herramientas como PyMOL o ChimeraX.</p>
+            <div class="mt-3">
+              {% if comparison.comparison.original_model_path %}
+              <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='original') }}"
+                class="btn btn-primary me-2">
+                📥 Descargar Modelo Original
+              </a>
+              {% endif %}
+              {% if comparison.comparison.mutated_model_path %}
+              <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='mutated') }}"
+                class="btn btn-primary me-2">
+                📥 Descargar Modelo Mutado
+              </a>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Placeholder para futuro visualizador -->
+          <div id="protein-viewer"
+            style="height: 400px; background: #f8f9fa; border: 2px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
+            <div class="text-center text-muted">
+              <i class="fas fa-cube fa-3x mb-3"></i>
+              <h5>Visualizador 3D</h5>
+              <p>Próximamente disponible</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Information -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <h3>🔌 Acceso Programático</h3>
+        </div>
+        <div class="card-body">
+          <p>Puedes acceder a los datos de esta comparación mediante nuestra API:</p>
+          <div class="code-block">
+            <code>GET {{ request.url_root }}api/comparison/{{ comparison_id }}/structural-analysis</code>
+          </div>
+          <div class="mt-2">
+            <a href="{{ url_for('main.get_structural_analysis', comparison_id=comparison_id) }}"
+              class="btn btn-outline-secondary btn-sm" target="_blank">
+              📊 Ver JSON
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sequence-display {
+    font-family: 'Courier New', monospace;
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    word-break: break-all;
+    font-size: 0.9em;
+    max-height: 100px;
+    overflow-y: auto;
+  }
+
+  .code-block {
+    background: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    border-left: 4px solid #007bff;
+  }
+
+  .display-4,
+  .display-6 {
+    font-weight: bold;
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  $(document).ready(function () {
+    // Configurar las barras de progreso usando data-width
+    $('.progress-bar[data-width]').each(function () {
+      const width = $(this).attr('data-width') + '%';
+      $(this).css('width', width);
+    });
+
+    // Futuro: Aquí se inicializará el visualizador 3D
+    console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
+  });
+</script>
+{% endblock %}

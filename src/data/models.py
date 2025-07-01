@@ -78,5 +78,16 @@ class ProteinComparison(db.Model):
             'description': self.description,
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            # Campos de AlphaFold
+            'original_prediction_url': self.original_prediction_url,
+            'mutated_prediction_url': self.mutated_prediction_url,
+            'original_model_path': self.original_model_path,
+            'mutated_model_path': self.mutated_model_path,
+            'original_confidence_score': self.original_confidence_score,
+            'mutated_confidence_score': self.mutated_confidence_score,
+            'alphafold_job_id': self.alphafold_job_id,
+            'processing_time': self.processing_time,
+            'structural_changes': self.structural_changes,
+            'rmsd_value': self.rmsd_value
         }
