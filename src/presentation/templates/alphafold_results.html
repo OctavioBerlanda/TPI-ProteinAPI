@@ -362,8 +362,8 @@
       "comparisonId": comparison_id,
       "hasOriginal": comparison.comparison.original_model_path != None,
       "hasMutated": comparison.comparison.mutated_model_path != None,
-      "originalModelUrl": url_for('main.get_model_file_for_viewer', comparison_id=comparison_id, model_type='original', _external=True) if comparison.comparison.original_model_path else None,
-      "mutatedModelUrl": url_for('main.get_model_file_for_viewer', comparison_id=comparison_id, model_type='mutated', _external=True) if comparison.comparison.mutated_model_path else None
+      "originalModelUrl": url_for('main.get_model_file_as_pdb', comparison_id=comparison_id, model_type='original', _external=True) if comparison.comparison.original_model_path else None,
+      "mutatedModelUrl": url_for('main.get_model_file_as_pdb', comparison_id=comparison_id, model_type='mutated', _external=True) if comparison.comparison.mutated_model_path else None
     } | tojson
   }}
 </script>
