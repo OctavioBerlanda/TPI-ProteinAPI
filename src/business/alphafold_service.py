@@ -228,16 +228,118 @@ class AlphaFoldService:
         Returns:
             Ruta del archivo PDB creado
         """
-        filename = f"{job_name}_{int(time.time())}.pdb"
+        filename = f"{job_name}_{int(time.time())}.cif"
         file_path = os.path.join(self.models_directory, filename)
         
-        # Crear contenido PDB básico
-        pdb_content = self._generate_demo_pdb_content(sequence, job_name)
+        # Crear contenido CIF básico (formato mmCIF)
+        cif_content = self._generate_demo_cif_content(sequence, job_name)
         
         with open(file_path, 'w') as f:
-            f.write(pdb_content)
+            f.write(cif_content)
         
         return file_path
+    
+    def _generate_demo_cif_content(self, sequence: str, job_name: str) -> str:
+        """
+        Genera contenido CIF (mmCIF) de demostración
+        
+        Args:
+            sequence: Secuencia de aminoácidos
+            job_name: Nombre del trabajo
+            
+        Returns:
+            Contenido del archivo CIF
+        """
+        from datetime import datetime
+        
+        # Header CIF
+        header = f"""data_demo_structure
+#
+_entry.id   demo_structure
+_entry.title   "Protein structure prediction for {job_name}"
+#
+_entity.id   1
+_entity.type   polymer
+_entity.pdbx_description   "Predicted protein"
+#
+_entity_poly.entity_id   1
+_entity_poly.type   "polypeptide(L)"
+_entity_poly.pdbx_seq_one_letter_code   "{sequence}"
+#
+_struct.entry_id   demo_structure
+_struct.title   "AlphaFold prediction for {job_name}"
+#
+_struct_conf.conf_type_id   HELX_P
+_struct_conf.id   H1
+_struct_conf.pdbx_PDB_helix_id   1
+_struct_conf.beg_label_comp_id   {sequence[0] if sequence else 'M'}
+_struct_conf.beg_label_asym_id   A
+_struct_conf.beg_label_seq_id   1
+_struct_conf.end_label_comp_id   {sequence[-1] if sequence else 'G'}
+_struct_conf.end_label_asym_id   A
+_struct_conf.end_label_seq_id   {len(sequence)}
+_struct_conf.pdbx_PDB_helix_class   1
+#
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_alt_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_entity_id
+_atom_site.label_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+_atom_site.pdbx_formal_charge
+_atom_site.auth_seq_id
+_atom_site.auth_comp_id
+_atom_site.auth_asym_id
+_atom_site.auth_atom_id
+_atom_site.pdbx_PDB_model_num
+"""
+        
+        # Generar coordenadas atómicas para CIF
+        atoms = []
+        atom_id = 1
+        
+        # Mapeo de aminoácidos a códigos de 3 letras
+        aa_map = {
+            'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'C': 'CYS',
+            'Q': 'GLN', 'E': 'GLU', 'G': 'GLY', 'H': 'HIS', 'I': 'ILE',
+            'L': 'LEU', 'K': 'LYS', 'M': 'MET', 'F': 'PHE', 'P': 'PRO',
+            'S': 'SER', 'T': 'THR', 'W': 'TRP', 'Y': 'TYR', 'V': 'VAL'
+        }
+        
+        for i, aa in enumerate(sequence):
+            # Coordenadas simplificadas para hélice alfa
+            # Ángulos de una hélice alfa típica
+            phi = -60.0 * 3.14159 / 180.0  # radianes
+            psi = -45.0 * 3.14159 / 180.0  # radianes
+            
+            # Posición del CA (carbono alfa)
+            x = i * 1.5 * 3.14159 / 3.6  # 3.6 residuos por vuelta
+            y = 2.3 * i * 3.14159 / 180.0  # subida por residuo
+            z = 1.5 * i * 3.14159 / 180.0
+            
+            # Convertir coordenadas a hélice
+            x_helix = 2.3 * (i * 0.1)
+            y_helix = 2.3 * (0.1 * i) * 1.2
+            z_helix = i * 1.5
+            
+            aa_code = aa_map.get(aa, 'ALA')
+            
+            # Línea para CA en formato CIF
+            atom_line = f"ATOM {atom_id:6d} C CA . {aa_code} A 1 {i+1:4d} ? {x_helix:8.3f} {y_helix:8.3f} {z_helix:8.3f} 1.00 85.00 ? {i+1:4d} {aa_code} A CA 1"
+            atoms.append(atom_line)
+            atom_id += 1
+        
+        return header + "\n".join(atoms) + "\n#\n"
     
     def _generate_demo_pdb_content(self, sequence: str, job_name: str) -> str:
         """

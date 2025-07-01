@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Test NGL Viewer</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+</head>
+
+<body>
+  <h1>Test NGL Viewer</h1>
+  <div id="viewport" style="width: 500px; height: 400px; border: 1px solid black;"></div>
+
+  <script>
+    console.log('Testing NGL...');
+    console.log('NGL available:', typeof NGL !== 'undefined');
+    console.log('jQuery available:', typeof $ !== 'undefined');
+
+    if (typeof NGL !== 'undefined') {
+      try {
+        var stage = new NGL.Stage("viewport");
+        stage.loadFile("rcsb://1crn").then(function (component) {
+          component.addRepresentation("cartoon");
+          component.autoView();
+          console.log('✅ NGL test successful!');
+        }).catch(function (error) {
+          console.error('❌ Error loading test protein:', error);
+        });
+      } catch (error) {
+        console.error('❌ Error initializing NGL:', error);
+      }
+    } else {
+      console.error('❌ NGL not available');
+    }
+  </script>
+</body>
+
+</html>

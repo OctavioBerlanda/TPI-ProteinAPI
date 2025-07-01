@@ -131,6 +131,47 @@ def get_model_file(comparison_id, model_type):
     
     return send_file(model_path, as_attachment=True)
 
+@main_bp.route('/api/comparison/<int:comparison_id>/model/<model_type>/view')
+def get_model_file_for_viewer(comparison_id, model_type):
+    """API endpoint para servir archivos de modelos 3D para visualización (sin descarga)"""
+    import os
+    from flask import send_file, abort, Response
+    
+    details = comparison_manager.get_comparison_details(comparison_id)
+    if not details:
+        abort(404)
+    
+    comparison_data = details.get('comparison', {})
+    model_path = None
+    if model_type == 'original':
+        model_path = comparison_data.get('original_model_path')
+    elif model_type == 'mutated':
+        model_path = comparison_data.get('mutated_model_path')
+    
+    if not model_path or not os.path.exists(model_path):
+        abort(404)
+    
+    # Servir el archivo para visualización con headers apropiados para CORS
+    def generate():
+        with open(model_path, 'r', encoding='utf-8') as f:
+            yield f.read()
+    
+    # Detectar tipo de archivo y establecer mimetype correcto
+    if model_path.endswith('.cif'):
+        mimetype = 'chemical/x-cif'
+    elif model_path.endswith('.pdb'):
+        mimetype = 'chemical/x-pdb'
+    else:
+        mimetype = 'text/plain'
+    
+    return Response(generate(), 
+                   mimetype=mimetype,
+                   headers={
+                       'Access-Control-Allow-Origin': '*',
+                       'Cache-Control': 'public, max-age=3600',
+                       'Content-Type': mimetype
+                   })
+
 @main_bp.route('/api/comparison/<int:comparison_id>/structural-analysis')
 def get_structural_analysis(comparison_id):
     """API endpoint para obtener análisis estructural en formato JSON"""

@@ -256,9 +256,16 @@ class ComparisonManager:
         try:
             repo = ProteinComparisonRepository()
             
+            import json
+            
             original = alphafold_results.get('original', {})
             mutated = alphafold_results.get('mutated', {})
             comparison = alphafold_results.get('comparison', {})
+            
+            # Convertir structural_changes a JSON si es un diccionario
+            structural_changes = comparison.get('structural_changes')
+            if structural_changes and isinstance(structural_changes, dict):
+                structural_changes = json.dumps(structural_changes)
             
             update_data = {
                 'original_model_path': original.get('model_path'),
@@ -269,7 +276,7 @@ class ComparisonManager:
                 'mutated_confidence_score': mutated.get('confidence'),
                 'alphafold_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
                 'processing_time': original.get('processing_time', 0) + mutated.get('processing_time', 0),
-                'structural_changes': comparison.get('structural_changes'),
+                'structural_changes': structural_changes,
                 'rmsd_value': comparison.get('rmsd_value'),
                 'status': 'completed'
             }

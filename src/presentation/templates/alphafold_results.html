@@ -31,8 +31,8 @@
             <div class="col-md-6">
               <p><strong>Nombre:</strong> {{ comparison.comparison.comparison_name or 'Sin nombre' }}</p>
               <p><strong>Usuario:</strong> {{ comparison.user.username }}</p>
-              <p><strong>Fecha:</strong> {{ comparison.comparison.created_at.strftime('%d/%m/%Y %H:%M') if
-                comparison.comparison.created_at else 'No disponible' }}</p>
+              <p><strong>Fecha:</strong> {{ comparison.comparison.created_at[:19] if comparison.comparison.created_at
+                else 'No disponible' }}</p>
               <p><strong>Estado:</strong>
                 <span class="badge bg-{{ 'success' if comparison.comparison.status == 'completed' else 'warning' }}">
                   {{ comparison.comparison.status.title() if comparison.comparison.status else 'Desconocido' }}
@@ -218,38 +218,84 @@
     <div class="col-md-12">
       <div class="card mb-4">
         <div class="card-header">
-          <h3>🧊 Visualización 3D (Próximamente)</h3>
+          <h3>🧊 Visualización 3D Interactiva</h3>
         </div>
         <div class="card-body">
-          <div class="alert alert-info">
-            <h5>🚧 En Desarrollo</h5>
-            <p>La visualización 3D interactiva está en desarrollo. Por ahora puedes descargar los archivos PDB para
-              visualizarlos en herramientas como PyMOL o ChimeraX.</p>
-            <div class="mt-3">
+          {% if comparison.comparison.original_model_path or comparison.comparison.mutated_model_path %}
+
+          <!-- Controles del visualizador -->
+          <div class="mb-3">
+            <div class="btn-group" role="group" aria-label="Controles de visualización">
               {% if comparison.comparison.original_model_path %}
-              <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='original') }}"
-                class="btn btn-primary me-2">
-                📥 Descargar Modelo Original
-              </a>
+              <button type="button" class="btn btn-outline-primary" id="load-original">
+                🎯 Ver Original
+              </button>
               {% endif %}
               {% if comparison.comparison.mutated_model_path %}
-              <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='mutated') }}"
-                class="btn btn-primary me-2">
-                📥 Descargar Modelo Mutado
-              </a>
+              <button type="button" class="btn btn-outline-success" id="load-mutated">
+                🧪 Ver Mutada
+              </button>
               {% endif %}
+              {% if comparison.comparison.original_model_path and comparison.comparison.mutated_model_path %}
+              <button type="button" class="btn btn-outline-info" id="load-both">
+                👁️ Comparar Ambas
+              </button>
+              {% endif %}
+              <button type="button" class="btn btn-outline-secondary" id="reset-view">
+                🔄 Reiniciar Vista
+              </button>
             </div>
           </div>
 
-          <!-- Placeholder para futuro visualizador -->
-          <div id="protein-viewer"
-            style="height: 400px; background: #f8f9fa; border: 2px dashed #dee2e6; display: flex; align-items: center; justify-content: center;">
-            <div class="text-center text-muted">
-              <i class="fas fa-cube fa-3x mb-3"></i>
-              <h5>Visualizador 3D</h5>
-              <p>Próximamente disponible</p>
+          <!-- Visualizador NGL -->
+          <div id="protein-viewer" style="height: 500px; border: 1px solid #dee2e6; border-radius: 5px;">
+            <div class="d-flex align-items-center justify-content-center h-100" id="loading-message">
+              <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="mt-2 text-muted">Inicializando visualizador 3D...</p>
+              </div>
             </div>
           </div>
+
+          <!-- Información de la visualización -->
+          <div class="mt-3">
+            <div class="alert alert-info">
+              <h6>💡 Controles del Visualizador:</h6>
+              <ul class="mb-0">
+                <li><strong>Rotar:</strong> Click izquierdo + arrastrar</li>
+                <li><strong>Zoom:</strong> Rueda del mouse o pinch</li>
+                <li><strong>Mover:</strong> Click derecho + arrastrar</li>
+                <li><strong>Centrar:</strong> Doble click en la estructura</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Botones de descarga -->
+          <div class="mt-3">
+            {% if comparison.comparison.original_model_path %}
+            <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='original') }}"
+              class="btn btn-primary me-2">
+              📥 Descargar Modelo Original
+            </a>
+            {% endif %}
+            {% if comparison.comparison.mutated_model_path %}
+            <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='mutated') }}"
+              class="btn btn-primary me-2">
+              📥 Descargar Modelo Mutado
+            </a>
+            {% endif %}
+          </div>
+
+          {% else %}
+          <!-- Mensaje cuando no hay modelos disponibles -->
+          <div class="alert alert-warning">
+            <h5>⚠️ Sin Modelos 3D</h5>
+            <p>Esta comparación no incluye modelos 3D generados por AlphaFold. Para obtener visualización 3D, ejecuta
+              una nueva comparación con la opción "Habilitar AlphaFold" activada.</p>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -306,7 +352,10 @@
 </style>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
+<!-- NGL Viewer Library -->
+<script src="https://cdn.jsdelivr.net/npm/ngl@2.0.0-dev.37/dist/ngl.js"></script>
+
 <script>
   $(document).ready(function () {
     // Configurar las barras de progreso usando data-width
@@ -315,8 +364,204 @@
       $(this).css('width', width);
     });
 
-    // Futuro: Aquí se inicializará el visualizador 3D
-    console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
+    // URLs de los modelos (definidas desde el servidor)
+    const hasOriginal = {{ 'true' if comparison.comparison.original_model_path else 'false' }
+  };
+  const hasMutated = {{ 'true' if comparison.comparison.mutated_model_path else 'false' }};
+
+  const originalModelUrl = hasOriginal ? '{{ url_for("main.get_model_file_for_viewer", comparison_id=comparison_id, model_type="original") }}' : null;
+  const mutatedModelUrl = hasMutated ? '{{ url_for("main.get_model_file_for_viewer", comparison_id=comparison_id, model_type="mutated") }}' : null;
+
+  // Variables del visualizador
+  let stage = null;
+  let currentComponents = [];
+
+  // Función para inicializar el stage de NGL
+  function initializeNGL() {
+    console.log('🚀 Starting NGL initialization...');
+    console.log('Viewport element exists:', $('#protein-viewer').length > 0);
+
+    try {
+      console.log('📦 Creating NGL Stage...');
+      stage = new NGL.Stage("protein-viewer");
+      console.log('✅ NGL Stage created successfully');
+
+      $('#loading-message').hide();
+      console.log('🔄 Loading spinner hidden');
+
+      // Configurar el stage
+      stage.setParameters({
+        backgroundColor: "white",
+        quality: "medium"
+      });
+      console.log('⚙️ Stage parameters set');
+
+      // Auto-cargar el primer modelo disponible
+      console.log('🎯 hasOriginal:', hasOriginal);
+      console.log('🧪 hasMutated:', hasMutated);
+      console.log('🔗 originalModelUrl:', originalModelUrl);
+      console.log('🔗 mutatedModelUrl:', mutatedModelUrl);
+
+      if (hasOriginal) {
+        console.log('🎯 Loading original model...');
+        loadOriginalModel();
+      } else if (hasMutated) {
+        console.log('🧪 Loading mutated model...');
+        loadMutatedModel();
+      } else {
+        console.log('⚠️ No models available to load');
+      }
+
+      console.log('✅ NGL Viewer inicializado correctamente');
+    } catch (error) {
+      console.error('❌ Error al inicializar NGL Viewer:', error);
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+      showError('Error al inicializar el visualizador 3D: ' + error.message);
+    }
+  }
+
+  // Función para mostrar errores
+  function showError(message) {
+    $('#protein-viewer').html(`
+          <div class="d-flex align-items-center justify-content-center h-100">
+            <div class="text-center text-danger">
+              <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+              <h5>Error en el Visualizador</h5>
+              <p>${message}</p>
+              <button class="btn btn-outline-danger" onclick="location.reload()">
+                🔄 Reintentar
+              </button>
+            </div>
+          </div>
+        `);
+  }
+
+  // Función para limpiar componentes
+  function clearComponents() {
+    currentComponents.forEach(comp => stage.removeComponent(comp));
+    currentComponents = [];
+  }
+
+  // Función para cargar modelo original
+  function loadOriginalModel() {
+    if (!originalModelUrl) return;
+
+    clearComponents();
+    stage.loadFile(originalModelUrl).then(function (component) {
+      currentComponents.push(component);
+      component.addRepresentation("cartoon", {
+        color: "chainid",
+        opacity: 0.8
+      });
+      component.addRepresentation("ball+stick", {
+        sele: "hetero",
+        color: "element"
+      });
+      component.autoView();
+      console.log('✅ Modelo original cargado');
+    }).catch(function (error) {
+      console.error('❌ Error cargando modelo original:', error);
+      showError('No se pudo cargar el modelo original');
+    });
+  }
+
+  // Función para cargar modelo mutado
+  function loadMutatedModel() {
+    if (!mutatedModelUrl) return;
+
+    clearComponents();
+    stage.loadFile(mutatedModelUrl).then(function (component) {
+      currentComponents.push(component);
+      component.addRepresentation("cartoon", {
+        color: "chainid",
+        opacity: 0.8
+      });
+      component.addRepresentation("ball+stick", {
+        sele: "hetero",
+        color: "element"
+      });
+      component.autoView();
+      console.log('✅ Modelo mutado cargado');
+    }).catch(function (error) {
+      console.error('❌ Error cargando modelo mutado:', error);
+      showError('No se pudo cargar el modelo mutado');
+    });
+  }
+
+  // Función para cargar ambos modelos
+  function loadBothModels() {
+    if (!originalModelUrl || !mutatedModelUrl) return;
+
+    clearComponents();
+
+    // Cargar modelo original
+    stage.loadFile(originalModelUrl).then(function (component) {
+      currentComponents.push(component);
+      component.addRepresentation("cartoon", {
+        color: "#2E86C1",  // Azul
+        opacity: 0.7
+      });
+      component.addRepresentation("ball+stick", {
+        sele: "hetero",
+        color: "element"
+      });
+
+      // Cargar modelo mutado
+      return stage.loadFile(mutatedModelUrl);
+    }).then(function (component) {
+      currentComponents.push(component);
+      component.addRepresentation("cartoon", {
+        color: "#E74C3C",  // Rojo
+        opacity: 0.7
+      });
+      component.addRepresentation("ball+stick", {
+        sele: "hetero",
+        color: "element"
+      });
+      stage.autoView();
+      console.log('✅ Ambos modelos cargados para comparación');
+    }).catch(function (error) {
+      console.error('❌ Error cargando modelos para comparación:', error);
+      showError('No se pudieron cargar los modelos para comparación');
+    });
+  }
+
+  // Event listeners para los botones
+  $('#load-original').click(loadOriginalModel);
+  $('#load-mutated').click(loadMutatedModel);
+  $('#load-both').click(loadBothModels);
+  $('#reset-view').click(function () {
+    if (stage) {
+      stage.autoView();
+    }
+  });
+
+  // Inicializar NGL cuando esté disponible
+  console.log('🔍 Checking NGL availability...');
+  console.log('NGL type:', typeof NGL);
+  console.log('jQuery available:', typeof $ !== 'undefined');
+
+  if (typeof NGL !== 'undefined') {
+    console.log('✅ NGL is available, initializing...');
+    initializeNGL();
+  } else {
+    console.log('⏳ NGL not ready, waiting...');
+    // Esperar a que se cargue la librería
+    setTimeout(function () {
+      console.log('🔍 Rechecking NGL after timeout...');
+      console.log('NGL type:', typeof NGL);
+      if (typeof NGL !== 'undefined') {
+        console.log('✅ NGL loaded after timeout, initializing...');
+        initializeNGL();
+      } else {
+        console.error('❌ NGL still not available after timeout');
+        showError('No se pudo cargar la librería NGL Viewer');
+      }
+    }, 2000); // Increased timeout to 2 seconds
+  }
+
+  console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
   });
 </script>
 {% endblock %}
