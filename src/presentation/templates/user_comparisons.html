@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar Comparaciones - Comparador de Proteínas{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8 mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-4">
+      <h2 class="text-primary">
+        <i class="fas fa-search me-2"></i>
+        Buscar Comparaciones de Usuario
+      </h2>
+      <p class="text-muted">Encuentra todas las comparaciones realizadas por un usuario específico</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-user me-2"></i>
+          Buscar por Usuario
+        </h5>
+      </div>
+      <div class="card-body">
+        <form method="POST">
+          {{ form.hidden_tag() }}
+          <div class="row align-items-end">
+            <div class="col-md-8">
+              <div class="form-group">
+                {{ form.username.label(class="form-label fw-bold") }}
+                {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else ""),
+                placeholder="Ingrese el nombre de usuario") }}
+                {% if form.username.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.username.errors %}
+                  {{ error }}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-4">
+              {{ form.submit(class="btn btn-primary w-100") }}
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Results -->
+    {% if data %}
+    {% if data.success %}
+    <!-- User Info -->
+    <div class="card mb-4">
+      <div class="card-header bg-success text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-user-check me-2"></i>
+          Usuario Encontrado
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Usuario:</strong> {{ data.user.username }}</p>
+            <p><strong>Email:</strong> {{ data.user.email }}</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>ID:</strong> {{ data.user.id }}</p>
+            <p><strong>Total de comparaciones:</strong> {{ data.comparisons|length }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Comparisons List -->
+    {% if data.comparisons %}
+    <div class="card">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-list me-2"></i>
+          Comparaciones ({{ data.comparisons|length }})
+        </h5>
+      </div>
+      <div class="card-body">
+        {% for comparison in data.comparisons %}
+        <div class="card mb-3 {% if loop.last %}mb-0{% endif %}">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-8">
+                <h6 class="card-title">
+                  <i class="fas fa-dna me-2 text-primary"></i>
+                  {{ comparison.comparison_name or 'Comparación #' + comparison.id|string }}
+                </h6>
+                <p class="card-text text-muted mb-2">
+                  <strong>Mutaciones:</strong> {{ comparison.mutations_description }}
+                </p>
+                <p class="card-text">
+                  <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>
+                    {{ comparison.created_at[:19] if comparison.created_at else 'Fecha no disponible' }}
+                  </small>
+                </p>
+                {% if comparison.description %}
+                <p class="card-text">
+                  <small class="text-muted">{{ comparison.description }}</small>
+                </p>
+                {% endif %}
+              </div>
+              <div class="col-md-4 text-end">
+                <div class="mb-2">
+                  <span class="badge bg-info">{{ comparison.sequence_length }} aminoácidos</span>
+                  <span class="badge bg-warning text-dark">{{ comparison.mutation_count }} mutación(es)</span>
+                </div>
+                <div class="mb-2">
+                  <span class="badge bg-success">{{ comparison.status.title() }}</span>
+                </div>
+                <a href="{{ url_for('main.comparison_result', comparison_id=comparison.id) }}"
+                  class="btn btn-outline-primary btn-sm">
+                  <i class="fas fa-eye me-1"></i>Ver Detalles
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      Este usuario no tiene comparaciones registradas.
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-warning">
+      <i class="fas fa-exclamation-triangle me-2"></i>
+      {{ data.message }}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <!-- Help Card -->
+    <div class="card mt-4 border-info">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-question-circle me-2"></i>
+          Ayuda
+        </h5>
+      </div>
+      <div class="card-body">
+        <p class="mb-2">
+          <strong>¿Cómo buscar comparaciones?</strong>
+        </p>
+        <ul class="mb-0">
+          <li>Ingrese el nombre de usuario exacto tal como fue registrado</li>
+          <li>El sistema mostrará todas las comparaciones realizadas por ese usuario</li>
+          <li>Puede hacer clic en "Ver Detalles" para revisar cada comparación</li>
+          <li>Las comparaciones se muestran ordenadas por fecha (más recientes primero)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

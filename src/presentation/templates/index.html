@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Comparador de Proteínas - Inicio{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-8 mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-5">
+      <h1 class="display-4 text-primary">
+        <i class="fas fa-dna me-3"></i>
+        Comparador de Proteínas
+      </h1>
+      <p class="lead text-muted">
+        Compara secuencias de proteínas y analiza mutaciones usando AlphaFold
+      </p>
+    </div>
+
+    <!-- Instructions Card -->
+    <div class="card mb-4 border-info">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Instrucciones
+        </h5>
+      </div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li>Ingrese dos secuencias de proteínas (original y mutada)</li>
+          <li>Las secuencias deben tener la <strong>misma longitud</strong></li>
+          <li>Máximo <strong>2 diferencias</strong> entre las secuencias</li>
+          <li>Solo se permiten los 20 aminoácidos estándar (A, R, N, D, C, Q, E, G, H, I, L, K, M, F, P, S, T, W, Y, V)
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Main Form -->
+    <div class="card shadow">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fas fa-microscope me-2"></i>
+          Nueva Comparación
+        </h3>
+      </div>
+      <div class="card-body">
+        <form method="POST" id="comparisonForm">
+          {{ form.hidden_tag() }}
+
+          <!-- User Information -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="form-group">
+                {{ form.username.label(class="form-label fw-bold") }}
+                {{ form.username(class="form-control" + (" is-invalid" if form.username.errors else "")) }}
+                {% if form.username.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.username.errors %}
+                  {{ error }}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                {{ form.email.label(class="form-label fw-bold") }}
+                {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+                {% if form.email.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.email.errors %}
+                  {{ error }}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Comparison Details -->
+          <div class="row mb-4">
+            <div class="col-md-6">
+              <div class="form-group">
+                {{ form.comparison_name.label(class="form-label") }}
+                {{ form.comparison_name(class="form-control", placeholder="Ej: Mutación Hemoglobina A12G") }}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                {{ form.description.label(class="form-label") }}
+                {{ form.description(class="form-control", rows="2", placeholder="Descripción opcional de la
+                comparación") }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Sequences -->
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                {{ form.original_sequence.label(class="form-label fw-bold text-success") }}
+                {{ form.original_sequence(class="form-control font-monospace" + (" is-invalid" if
+                form.original_sequence.errors else ""), id="originalSequence") }}
+                {% if form.original_sequence.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.original_sequence.errors %}
+                  {{ error }}
+                  {% endfor %}
+                </div>
+                {% endif %}
+                <div class="form-text">
+                  <small id="originalLength">Longitud: 0 aminoácidos</small>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                {{ form.mutated_sequence.label(class="form-label fw-bold text-warning") }}
+                {{ form.mutated_sequence(class="form-control font-monospace" + (" is-invalid" if
+                form.mutated_sequence.errors else ""), id="mutatedSequence") }}
+                {% if form.mutated_sequence.errors %}
+                <div class="invalid-feedback">
+                  {% for error in form.mutated_sequence.errors %}
+                  {{ error }}
+                  {% endfor %}
+                </div>
+                {% endif %}
+                <div class="form-text">
+                  <small id="mutatedLength">Longitud: 0 aminoácidos</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Validation Display -->
+          <div id="validationDisplay" class="alert" style="display: none;"></div>
+
+          <!-- Submit Button -->
+          <div class="text-center">
+            {{ form.submit(class="btn btn-primary btn-lg px-5") }}
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Amino Acids Reference -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-book me-2"></i>
+          Referencia de Aminoácidos
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <small class="text-muted">
+              <strong>Aminoácidos válidos:</strong><br>
+              A (Alanina), R (Arginina), N (Asparagina), D (Ácido aspártico), C (Cisteína)<br>
+              Q (Glutamina), E (Ácido glutámico), G (Glicina), H (Histidina), I (Isoleucina)
+            </small>
+          </div>
+          <div class="col-md-6">
+            <small class="text-muted">
+              L (Leucina), K (Lisina), M (Metionina), F (Fenilalanina), P (Prolina)<br>
+              S (Serina), T (Treonina), W (Triptófano), Y (Tirosina), V (Valina)
+            </small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Live validation and character counting
+  document.addEventListener('DOMContentLoaded', function () {
+    const originalInput = document.getElementById('originalSequence');
+    const mutatedInput = document.getElementById('mutatedSequence');
+    const originalLength = document.getElementById('originalLength');
+    const mutatedLength = document.getElementById('mutatedLength');
+    const validationDisplay = document.getElementById('validationDisplay');
+
+    function updateValidation() {
+      const original = originalInput.value.replace(/\s/g, '').toUpperCase();
+      const mutated = mutatedInput.value.replace(/\s/g, '').toUpperCase();
+
+      originalLength.textContent = `Longitud: ${original.length} aminoácidos`;
+      mutatedLength.textContent = `Longitud: ${mutated.length} aminoácidos`;
+
+      if (original.length > 0 && mutated.length > 0) {
+        let messages = [];
+        let isValid = true;
+
+        // Check length
+        if (original.length !== mutated.length) {
+          messages.push(`⚠️ Diferentes longitudes: ${original.length} vs ${mutated.length}`);
+          isValid = false;
+        }
+
+        // Check differences
+        if (original.length === mutated.length) {
+          let differences = 0;
+          for (let i = 0; i < original.length; i++) {
+            if (original[i] !== mutated[i]) {
+              differences++;
+            }
+          }
+
+          if (differences === 0) {
+            messages.push('⚠️ No hay diferencias entre las secuencias');
+            isValid = false;
+          } else if (differences > 2) {
+            messages.push(`⚠️ Demasiadas diferencias: ${differences} (máximo 2)`);
+            isValid = false;
+          } else {
+            messages.push(`✅ ${differences} diferencia(s) encontrada(s)`);
+          }
+        }
+
+        if (messages.length > 0) {
+          validationDisplay.style.display = 'block';
+          validationDisplay.className = `alert ${isValid ? 'alert-success' : 'alert-warning'}`;
+          validationDisplay.innerHTML = messages.join('<br>');
+        } else {
+          validationDisplay.style.display = 'none';
+        }
+      } else {
+        validationDisplay.style.display = 'none';
+      }
+    }
+
+    originalInput.addEventListener('input', updateValidation);
+    mutatedInput.addEventListener('input', updateValidation);
+
+    // Initial validation
+    updateValidation();
+  });
+</script>
+{% endblock %}

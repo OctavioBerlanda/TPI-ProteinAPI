@@ -1,0 +1,7 @@
+requests
+pandas
+matplotlib
+seaborn
+biopython
+numpy
+python-version: 3.11.5

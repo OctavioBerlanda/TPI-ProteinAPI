@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Resultado de Comparación - Comparador de Proteínas{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-10 mx-auto">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2 class="text-primary">
+        <i class="fas fa-chart-line me-2"></i>
+        Resultado de la Comparación
+      </h2>
+      <a href="{{ url_for('main.index') }}" class="btn btn-outline-primary">
+        <i class="fas fa-plus me-2"></i>Nueva Comparación
+      </a>
+    </div>
+
+    <!-- Comparison Info Card -->
+    <div class="card mb-4">
+      <div class="card-header bg-primary text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Información de la Comparación
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>ID:</strong> {{ details.comparison.id }}</p>
+            <p><strong>Nombre:</strong> {{ details.comparison.comparison_name or 'Sin nombre' }}</p>
+            <p><strong>Usuario:</strong> {{ details.user.username }} ({{ details.user.email }})</p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Fecha:</strong> {{ details.comparison.created_at[:19] if details.comparison.created_at else 'N/A'
+              }}</p>
+            <p><strong>Longitud:</strong> {{ details.comparison.sequence_length }} aminoácidos</p>
+            <p><strong>Estado:</strong>
+              <span class="badge bg-success">{{ details.comparison.status.title() }}</span>
+            </p>
+          </div>
+        </div>
+        {% if details.comparison.description %}
+        <div class="mt-3">
+          <strong>Descripción:</strong> {{ details.comparison.description }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Mutations Analysis Card -->
+    <div class="card mb-4">
+      <div class="card-header bg-warning text-dark">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-dna me-2"></i>
+          Análisis de Mutaciones
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-12">
+            <div class="alert alert-info">
+              <h6 class="alert-heading">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                Resumen de Mutaciones
+              </h6>
+              <p class="mb-2">
+                <strong>Total de mutaciones:</strong> {{ details.mutations_analysis.total_mutations }}
+              </p>
+              <p class="mb-2">
+                <strong>Posiciones afectadas:</strong> {{ details.mutations_analysis.positions | join(', ') }}
+              </p>
+              <p class="mb-0">
+                <strong>Descripción:</strong> {{ details.mutations_analysis.description }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detailed Mutations -->
+        {% if details.mutations_analysis.mutations %}
+        <h6 class="mt-4 mb-3">Detalle de Mutaciones:</h6>
+        <div class="row">
+          {% for mutation in details.mutations_analysis.mutations %}
+          <div class="col-md-6 mb-3">
+            <div class="card border-warning">
+              <div class="card-body">
+                <h6 class="card-title text-warning">
+                  Posición {{ mutation.position }}
+                </h6>
+                <p class="card-text">
+                  <strong>Cambio:</strong>
+                  <span class="text-success">{{ mutation.original_amino_acid }}</span>
+                  <i class="fas fa-arrow-right mx-2"></i>
+                  <span class="text-danger">{{ mutation.mutated_amino_acid }}</span>
+                </p>
+                <p class="card-text">
+                  <small class="text-muted">
+                    {{ mutation.original_name }} → {{ mutation.mutated_name }}
+                  </small>
+                </p>
+                <span class="badge bg-warning text-dark">{{ mutation.mutation_notation }}</span>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Sequences Comparison Card -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-code me-2"></i>
+          Comparación de Secuencias
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-success">
+              <i class="fas fa-file-alt me-2"></i>
+              Secuencia Original
+            </h6>
+            <div class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
+              <code class="text-success d-block"
+                style="white-space: pre-wrap; word-break: break-all;">{{ details.comparison.original_sequence }}</code>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="text-warning">
+              <i class="fas fa-file-alt me-2"></i>
+              Secuencia Mutada
+            </h6>
+            <div class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
+              <code class="text-warning d-block"
+                style="white-space: pre-wrap; word-break: break-all;">{{ details.comparison.mutated_sequence }}</code>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual Comparison -->
+        <div class="mt-4">
+          <h6>Comparación Visual:</h6>
+          <div class="border rounded p-3 bg-dark text-light" style="max-height: 200px; overflow-y: auto;">
+            <code class="d-block" style="white-space: pre-wrap; word-break: break-all; font-family: monospace;">
+                            {% set original = details.comparison.original_sequence %}
+                            {% set mutated = details.comparison.mutated_sequence %}
+                            {% for i in range(original|length) %}
+                                {% if original[i] != mutated[i] %}
+                                    <span class="bg-danger text-white px-1">{{ original[i] }}→{{ mutated[i] }}</span>
+                                {% else %}
+                                    {{ original[i] }}
+                                {% endif %}
+                            {% endfor %}
+                        </code>
+          </div>
+          <small class="text-muted">Las diferencias están resaltadas en rojo</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- Future Features Card -->
+    <div class="card border-info">
+      <div class="card-header bg-info text-white">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-rocket me-2"></i>
+          Próximas Funcionalidades
+        </h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li><i class="fas fa-cube text-info me-2"></i>Visualización 3D de estructuras</li>
+              <li><i class="fas fa-chart-bar text-info me-2"></i>Análisis de confianza pLDDT</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="list-unstyled">
+              <li><i class="fas fa-link text-info me-2"></i>Integración con AlphaFold API</li>
+              <li><i class="fas fa-download text-info me-2"></i>Descarga de estructuras PDB/CIF</li>
+            </ul>
+          </div>
+        </div>
+        <div class="text-center mt-3">
+          <span class="badge bg-info">Estas funcionalidades estarán disponibles en la siguiente versión</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

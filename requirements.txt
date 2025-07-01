@@ -1,7 +1,16 @@
-requests
-pandas
-matplotlib
-seaborn
-biopython
-numpy
-python-version: 3.11.5
+# Web Framework - Versiones compatibles estables
+Flask==2.2.5
+Werkzeug==2.2.3
+Flask-WTF==1.1.1
+WTForms==3.0.1
+
+# Database - Esencial para MySQL y ORM
+mysql-connector-python==8.1.0
+SQLAlchemy==1.4.53
+Flask-SQLAlchemy==3.0.5
+
+# Configuration - Esencial para variables de entorno
+python-dotenv==1.0.0
+
+# API requests - Solo para futuras extensiones con AlphaFold
+requests==2.31.0
