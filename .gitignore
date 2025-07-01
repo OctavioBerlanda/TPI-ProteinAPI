@@ -1,0 +1,121 @@
+# 🧬 TPI-ProteinAPI - .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+database.db
+
+# Logs
+*.log
+logs/
+
+# Modelos generados (archivos grandes)
+models/alphafold/*.cif
+models/alphafold/*.pdb
+models/pdb/*.pdb
+models/pdb/*.cif
+
+# Archivos de testing temporales
+test_*.html
+test_*.cif
+test_*.pdb
+fix_*.html
+demo_*.py
+create_test_*.py
+create_demo_*.py
+
+# Scripts de mantenimiento temporales
+update_*.py
+regenerate_*.py
+migrate_*.py
+reset_*.py
+check_*.py
+fix_*.py
+install_*.py
+
+# Copias de seguridad
+*.bak
+*.backup
+*_backup.*
+*_old.*
+
+# Archivos de configuración locales
+config/local_settings.py
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Documentación temporal
+TEMP_*.md
+DEBUG_*.md
+TEST_*.md

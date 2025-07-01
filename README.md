@@ -1,239 +1,155 @@
-# Comparador de Proteínas - Sistema de Análisis de Mutaciones
+# 🧬 TPI-ProteinAPI
 
-Sistema desarrollado en Python con arquitectura en 3 capas para comparar secuencias de proteínas y analizar mutaciones.
+> **Sistema de Análisis y Comparación de Proteínas con Integración AlphaFold**
 
-## 🎯 Características Principales
+Un sistema web completo para analizar mutaciones en proteínas y comparar sus estructuras 3D utilizando predicciones de AlphaFold.
 
-- **Validación rigurosa** de secuencias de aminoácidos
-- **Análisis de mutaciones** (máximo 2 diferencias)
-- **Almacenamiento en MySQL** con SQLAlchemy ORM
-- **Interfaz web** moderna con Flask
-- **Arquitectura en 3 capas** (Presentación, Negocio, Datos)
-- **Tests completos** de reglas de negocio
+## 🚀 Características Principales
 
-## 🏗️ Arquitectura
+- ✅ **Análisis de Secuencias:** Validación y comparación de secuencias de aminoácidos
+- ✅ **Integración AlphaFold:** Predicción y comparación de estructuras 3D
+- ✅ **Visualización 3D:** Viewer interactivo con NGL para modelos moleculares
+- ✅ **Base de Datos:** Almacenamiento persistente de comparaciones y resultados
+- ✅ **API REST:** Endpoints para integración programática
+- ✅ **Interfaz Web:** Dashboard intuitivo para usuarios
 
-```
-src/
-├── presentation/     # Capa de Presentación (Flask, Templates, Forms)
-├── business/        # Capa de Negocio (Validaciones, Lógica)
-└── data/           # Capa de Datos (Modelos, Repositorios)
-```
-
-## 📋 Requisitos
-
-- Python 3.11+
-- MySQL 8.0+
-- Dependencias en `requirements.txt`
-
-## 🚀 Instalación y Configuración
-
-### 1. Clonar el proyecto
-
-```bash
-cd TPI-ProteinAPI
-```
-
-### 2. Crear entorno virtual
-
-```bash
-python -m venv venv
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-```
-
-### 3. Instalar dependencias
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configurar base de datos
-
-Editar el archivo `.env`:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=protein_comparison_db
-DB_USER=root
-DB_PASSWORD=tu_password
-```
-
-### 5. Crear base de datos en MySQL
-
-```sql
-CREATE DATABASE protein_comparison_db;
-```
-
-### 6. Ejecutar tests (opcional pero recomendado)
-
-```bash
-python tests/run_tests.py
-```
-
-### 7. Ejecutar la aplicación
-
-```bash
-# Opción A: Script principal (RECOMENDADO)
-python app.py
-
-# Opción B: Script alternativo
-python run_app.py
-```
-
-La aplicación estará disponible en: http://localhost:5000
-
-## 🧪 Reglas de Negocio Implementadas
-
-### ✅ Validaciones de Secuencias
-
-- **RN-001**: Solo aminoácidos válidos (20 estándar)
-- **RN-002**: Secuencias de igual longitud
-- **RN-003**: Máximo 2 mutaciones
-- **RN-004**: Mínimo 1 diferencia
-- **RN-005**: Limpieza automática de secuencias
-
-### ✅ Gestión de Datos
-
-- **RN-006**: Creación automática de usuarios
-- **RN-007**: Trazabilidad completa de comparaciones
-
-## 🎮 Uso del Sistema
-
-### 1. Página Principal
-
-- Ingresa tus datos (usuario, email)
-- Proporciona las dos secuencias de proteínas
-- El sistema valida en tiempo real
-
-### 2. Resultados
-
-- Análisis detallado de mutaciones
-- Visualización de diferencias
-- Información de confianza
-
-### 3. Búsqueda
-
-- Busca comparaciones por usuario
-- Historial completo de análisis
-
-## 📊 Ejemplos de Uso
-
-### Secuencias Válidas (1 mutación)
-
-```
-Original: ARNDCQEGHILKMFPSTWYV
-Mutada:   GRNDCQEGHILKMFPSTWYV
-Resultado: A1G (Alanina → Glicina en posición 1)
-```
-
-### Secuencias Válidas (2 mutaciones)
-
-```
-Original: ARNDCQ
-Mutada:   GRNGCQ
-Resultado: A1G, D4G
-```
-
-### Casos Inválidos
-
-- Más de 2 diferencias ❌
-- Diferentes longitudes ❌
-- Caracteres inválidos (X, Z, etc.) ❌
-- Secuencias idénticas ❌
-
-## 🧪 Testing
-
-Ejecutar todos los tests:
-
-```bash
-python tests/run_tests.py
-```
-
-Tests específicos:
-
-```bash
-python -m unittest tests.test_sequence_business_rules
-python -m unittest tests.test_comparison_manager
-```
-
-## 📁 Estructura del Proyecto
+## 🏗️ Arquitectura del Sistema
 
 ```
 TPI-ProteinAPI/
 ├── src/
-│   ├── presentation/
-│   │   ├── app.py              # Aplicación Flask principal
-│   │   ├── routes.py           # Rutas y controladores
-│   │   ├── forms.py            # Formularios WTF
-│   │   └── templates/          # Plantillas HTML
-│   ├── business/
-│   │   ├── sequence_service.py # Lógica de validación
-│   │   └── comparison_manager.py # Gestión de comparaciones
-│   └── data/
-│       ├── models.py           # Modelos SQLAlchemy
-│       └── repositories.py     # Repositorios de datos
-├── tests/
-│   ├── test_sequence_business_rules.py
-│   ├── test_comparison_manager.py
-│   └── run_tests.py
-├── config/
-│   └── config.py               # Configuración de la app
-├── docs/
-│   └── MODELO_DOMINIO.md       # Documentación detallada
-├── .env                        # Variables de entorno
-└── requirements.txt            # Dependencias Python
+│   ├── business/          # Lógica de negocio
+│   │   ├── alphafold_service.py    # Servicio AlphaFold
+│   │   ├── comparison_manager.py   # Gestor de comparaciones
+│   │   └── sequence_service.py     # Validación de secuencias
+│   ├── data/             # Capa de datos
+│   │   ├── models.py     # Modelos SQLAlchemy
+│   │   └── repositories.py        # Repositorios de datos
+│   └── presentation/     # Capa de presentación
+│       ├── templates/    # Templates HTML
+│       ├── static/       # CSS/JS
+│       ├── routes.py     # Rutas Flask
+│       └── forms.py      # Formularios WTF
+├── config/               # Configuración
+├── models/               # Modelos 3D generados
+├── tests/                # Tests unitarios
+└── docs/                 # Documentación
 ```
 
-## 🔮 Funcionalidades Futuras
+## 🛠️ Instalación
 
-- Integración con AlphaFold API para predicciones 3D
-- Visualización 3D de estructuras proteicas
-- Análisis de confianza pLDDT
-- Exportación de resultados
-- API REST completa
+### Prerrequisitos
 
-## 🐛 Resolución de Problemas
+- Python 3.8+
+- pip
+- SQLite (incluido con Python)
 
-### Error de conexión a MySQL
+### Configuración Rápida
 
-- Verificar que MySQL esté ejecutándose
-- Comprobar credenciales en `.env`
-- Crear la base de datos manualmente
+```bash
+# 1. Clonar el repositorio
+git clone <repo-url>
+cd TPI-ProteinAPI
 
-### Error de importación
+# 2. Instalar dependencias
+pip install -r requirements.txt
 
-- Verificar que el entorno virtual esté activado
-- Reinstalar dependencias: `pip install -r requirements.txt`
+# 3. Inicializar base de datos
+python -c "from src.data.models import init_db; init_db()"
 
-### Tests fallan
+# 4. Ejecutar aplicación
+python -m src.main
+```
 
-- Verificar que no haya errores de sintaxis
-- Comprobar que todas las dependencias estén instaladas
+### Acceso a la Aplicación
 
-## 📝 Documentación Adicional
+- **Web UI:** http://localhost:5000
+- **API REST:** http://localhost:5000/api/
+- **Debug Viewer:** debug_ngl_viewer.html
 
-- [Modelo del Dominio](docs/MODELO_DOMINIO.md) - Documentación detallada de la arquitectura
-- [Reglas de Negocio](docs/MODELO_DOMINIO.md#3-reglas-de-negocio) - Especificación completa
+## 🧬 Uso del Sistema
 
-## 👨‍💻 Desarrollo
+### 1. Análisis de Mutaciones
 
-### Agregar nuevas validaciones
+1. Ingresa la secuencia original de aminoácidos
+2. Ingresa la secuencia mutada
+3. Marca "Usar AlphaFold" para análisis 3D
+4. Revisa los resultados de comparación
 
-1. Editar `src/business/sequence_service.py`
-2. Agregar tests en `tests/test_sequence_business_rules.py`
-3. Ejecutar tests para verificar
+### 2. Visualización 3D
 
-### Agregar nuevas rutas
+- **Modelos individuales:** Ver estructuras por separado
+- **Comparación lado a lado:** Visualizar diferencias
+- **Superposición:** Analizar cambios estructurales
 
-1. Editar `src/presentation/routes.py`
-2. Crear templates en `src/presentation/templates/`
-3. Actualizar formularios si es necesario
+### 3. API Programática
 
----
+```python
+# Ejemplo de uso de la API
+import requests
 
-**Desarrollado como proyecto académico de Programación en Python con Arquitectura en Capas**  
-_Fecha: Junio 2025_
+# Crear comparación
+response = requests.post('/api/comparisons', json={
+    'original_sequence': 'MVHLTPEEKS...',
+    'mutated_sequence': 'MVHLTPVEKS...',
+    'enable_alphafold': True
+})
+
+# Obtener resultados
+comparison_id = response.json()['comparison_id']
+results = requests.get(f'/api/comparison/{comparison_id}/structural-analysis')
+```
+
+## 📊 Proteínas Soportadas
+
+El sistema puede analizar cualquier proteína, con soporte optimizado para:
+
+- 🩸 **Hemoglobina** (variantes patológicas)
+- 💉 **Insulina** (diabetes y trastornos metabólicos)
+- 🧠 **p53** (supresión tumoral)
+- 🔬 **Lisozima** (función antimicrobiana)
+- 🧪 **Hormona de crecimiento** (trastornos del desarrollo)
+
+## 🔗 Endpoints API Principales
+
+```
+GET  /api/comparison/{id}/structural-analysis
+GET  /api/comparison/{id}/model/{type}/view.pdb
+GET  /api/comparison/{id}/model/{type}/view.cif
+POST /api/comparisons
+GET  /api/user/{username}/comparisons
+```
+
+## 🧪 Testing y Debugging
+
+- **Tests:** `python -m pytest tests/`
+- **Debug Viewer:** Archivo `debug_ngl_viewer.html` para testing de NGL
+- **Mutaciones de ejemplo:** Ver `MUTACIONES_PARA_PROBAR.md`
+
+## 📁 Archivos Importantes
+
+- `src/main.py` - Punto de entrada principal
+- `requirements.txt` - Dependencias Python
+- `MUTACIONES_PARA_PROBAR.md` - Ejemplos de mutaciones
+- `debug_ngl_viewer.html` - Herramienta de debugging
+- `.gitignore` - Archivos ignorados por Git
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crea una branch para tu feature
+3. Commit tus cambios
+4. Push a la branch
+5. Crea un Pull Request
+
+## 📄 Licencia
+
+Este proyecto está bajo la licencia MIT.
+
+## 🆘 Soporte
+
+Para problemas o preguntas:
+
+- Revisa la documentación en `docs/`
+- Usa el debug viewer para problemas de visualización 3D
+- Consulta los ejemplos en `MUTACIONES_PARA_PROBAR.md`
