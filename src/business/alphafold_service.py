@@ -8,11 +8,10 @@ import time
 import math
 import requests
 import tempfile
-from typing import Dict, Optional, Tuple, Any
+import numpy as np
+from typing import Dict, Optional, Tuple, Any, List
 from datetime import datetime
 from pathlib import Path
-
-# Importar la nueva clase de base de datos
 from ..data.protein_database import ProteinDatabase
 
 class AlphaFoldIntegrationError(Exception):
@@ -278,7 +277,7 @@ class AlphaFoldService:
     
     def _generate_demo_cif_content(self, sequence: str, job_name: str) -> str:
         """
-        Genera contenido CIF (mmCIF) mejorado con predicción de estructura secundaria
+        Genera contenido CIF (mmCIF) mejorado con predicción de estructura secundaria y plegamiento simulado.
         
         Args:
             sequence: Secuencia de aminoácidos
@@ -287,38 +286,12 @@ class AlphaFoldService:
         Returns:
             Contenido del archivo CIF en formato mmCIF estándar con estructura 3D realista
         """
-        from datetime import datetime
-        
-        # Estructura básica mmCIF compatible con NGL
-        cif_content = f"""data_demo_structure
+        # ... (La primera parte del contenido CIF (header, entity, etc.) se queda igual) ...
+        cif_header = f"""data_demo_structure
 #
 _entry.id   demo_structure
 #
-_audit_conform.dict_name       mmcif_pdbx.dic
-_audit_conform.dict_version    5.397
-#
-_entity.id                         1
-_entity.type                       polymer
-_entity.src_method                 man
-_entity.pdbx_description           'Predicted protein structure'
-_entity.formula_weight             ?
-#
-_entity_poly.entity_id   1
-_entity_poly.type        'polypeptide(L)'
-_entity_poly.nstd_linkage         no
-_entity_poly.nstd_monomer         no
-_entity_poly.pdbx_seq_one_letter_code
-;{sequence}
-;
-#
-_struct.entry_id                  demo_structure
-_struct.title                     'Simulated protein structure for {job_name}'
-#
-_struct_asym.id                    A
-_struct_asym.pdbx_blank_PDB_chainid_flag   N
-_struct_asym.pdbx_modified         N
-_struct_asym.entity_id             1
-_struct_asym.details               ?
+# ... (copia todo el header CIF de tu versión original hasta el loop_ de _atom_site) ...
 #
 loop_
 _atom_site.group_PDB
@@ -343,7 +316,6 @@ _atom_site.auth_asym_id
 _atom_site.auth_atom_id
 _atom_site.pdbx_PDB_model_num
 """
-
         # Mapeo de aminoácidos a códigos de 3 letras
         aa_map = {
             'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'C': 'CYS',
@@ -352,26 +324,28 @@ _atom_site.pdbx_PDB_model_num
             'S': 'SER', 'T': 'THR', 'W': 'TRP', 'Y': 'TYR', 'V': 'VAL'
         }
         
-        # Predecir estructura secundaria usando algoritmo Chou-Fasman simplificado
+        # --- NUEVO ALGORITMO DE PLEGAMIENTO ---
+        print("🔬 Iniciando algoritmo de plegamiento simulado mejorado...")
+        # 1. Predecir estructura secundaria (usamos la misma función de antes)
         secondary_structure = self._predict_secondary_structure(sequence)
         
-        # Generar coordenadas atómicas basadas en estructura secundaria predicha
-        atoms = []
-        coords = self._generate_realistic_coordinates(sequence, secondary_structure)
+        # 2. Generar coordenadas 3D plegadas
+        coords = self._generate_folded_coordinates(sequence, secondary_structure)
+        print("✅ Plegamiento simulado completado.")
         
+        atoms = []
         for i, aa in enumerate(sequence):
             aa_code = aa_map.get(aa, 'ALA')
-            x, y, z = coords[i]
+            x, y, z = coords[i] # Coordenadas del C-alfa
             
-            # Línea de átomo CA en formato mmCIF
+            # Línea de átomo CA en formato mmCIF (único átomo que representamos por simplicidad)
             atom_line = f"ATOM {i+1:6d} C CA . {aa_code} A 1 {i+1:4d} ? {x:8.3f} {y:8.3f} {z:8.3f} 1.00 50.00 ? {i+1:4d} {aa_code} A CA 1"
             atoms.append(atom_line)
         
-        # Unir todo el contenido
-        cif_content += "\n".join(atoms) + "\n#\n"
+        cif_content = cif_header + "\n".join(atoms) + "\n#\n"
         
         return cif_content
-    
+
     def _predict_secondary_structure(self, sequence: str) -> list:
         """
         Predice estructura secundaria usando algoritmo simplificado de Chou-Fasman
@@ -419,60 +393,142 @@ _atom_site.pdbx_PDB_model_num
                 structure.append('C')  # Coil/loop
                 
         return structure
-    
-    def _generate_realistic_coordinates(self, sequence: str, secondary_structure: list) -> list:
+
+    def _generate_folded_coordinates(self, sequence: str, secondary_structure: list) -> np.ndarray:
         """
-        Genera coordenadas 3D realistas basadas en estructura secundaria predicha
+        Genera coordenadas 3D realistas usando ángulos de torsión y colapso hidrofóbico.
         
         Args:
             sequence: Secuencia de aminoácidos
             secondary_structure: Lista de estructuras secundarias predichas
             
         Returns:
-            Lista de coordenadas (x, y, z) para cada residuo
+            Array de numpy con las coordenadas (x, y, z) de los C-alfa de cada residuo
         """
-        coords = []
-        current_pos = [0.0, 0.0, 0.0]  # Posición actual
-        helix_angle = 0.0  # Ángulo para hélices
-        sheet_direction = [1, 0, 0]  # Dirección para sheets
+        # 1. Obtener los ángulos Phi/Psi para cada residuo basado en su estructura secundaria
+        phi_psi_angles = [self._get_phi_psi_for_ss(ss, i) for i, ss in enumerate(secondary_structure)]
+
+        # 2. Construir la cadena inicial del esqueleto usando los ángulos
+        # Usamos solo los C-alfa para simplificar, pero el principio es el mismo
+        initial_coords = self._build_chain_from_angles(len(sequence), phi_psi_angles)
+
+        # 3. Refinar la estructura usando colapso hidrofóbico
+        refined_coords = self._refine_structure_with_hydrophobic_collapse(sequence, initial_coords)
         
-        for i, (aa, ss) in enumerate(zip(sequence, secondary_structure)):
-            if ss == 'H':  # Hélice alfa
-                # Geometría de hélice alfa: 3.6 residuos por vuelta, 1.5 Å de avance por residuo
-                radius = 2.3  # Radio típico de hélice alfa
-                helix_angle += 100.0  # 360/3.6 = 100 grados por residuo
-                
-                x = current_pos[0] + radius * math.cos(math.radians(helix_angle))
-                y = current_pos[1] + radius * math.sin(math.radians(helix_angle))
-                z = current_pos[2] + 1.5  # Avance en Z
-                
-                current_pos = [x, y, z]
-                
-            elif ss == 'E':  # Beta sheet
-                # Geometría extendida de beta sheet
-                x = current_pos[0] + sheet_direction[0] * 3.5
-                y = current_pos[1] + sheet_direction[1] * 3.5
-                z = current_pos[2] + sheet_direction[2] * 1.2
-                
-                # Alternar dirección para crear patrón de sheet
-                if i % 8 == 0:
-                    sheet_direction = [-sheet_direction[0], sheet_direction[1], sheet_direction[2]]
-                
-                current_pos = [x, y, z]
-                
-            else:  # Coil/loop
-                # Geometría irregular de loop
-                import random
-                random.seed(i + len(sequence))  # Seed consistente
-                
-                x = current_pos[0] + random.uniform(-2, 2)
-                y = current_pos[1] + random.uniform(-2, 2) 
-                z = current_pos[2] + random.uniform(0.5, 3.0)
-                
-                current_pos = [x, y, z]
+        return refined_coords
+
+    def _get_phi_psi_for_ss(self, ss_type: str, index: int) -> Tuple[float, float]:
+        """Devuelve ángulos Phi y Psi típicos para un tipo de estructura secundaria."""
+        import random
+        random.seed(index) # Seed para reproducibilidad
+
+        if ss_type == 'H':  # Hélice Alfa
+            return -60.0, -45.0
+        elif ss_type == 'E':  # Hoja Beta
+            return -120.0, 120.0
+        else:  # Giro / Coil (aleatorio pero en regiones permitidas)
+            return random.choice([-80.0, -140.0, 60.0]), random.choice([-30.0, 150.0, 20.0, -170.0])
+
+    def _build_chain_from_angles(self, num_residues: int, angles: list) -> np.ndarray:
+        """Construye una cadena de C-alfa a partir de los ángulos phi/psi (mejorado)."""
+        coords = np.zeros((num_residues, 3))
+        # Distancia Cα-Cα es ~3.8 Ångströms
+        bond_length = 3.8
+        
+        # Colocamos los primeros átomos para definir un plano inicial
+        coords[0] = np.array([0.0, 0.0, 0.0])
+        if num_residues > 1:
+            coords[1] = np.array([bond_length, 0.0, 0.0])
+        if num_residues > 2:
+            coords[2] = np.array([bond_length * 1.5, bond_length * 0.5, 0.0])
+
+        # Para cada residuo después del tercero
+        for i in range(3, num_residues):
+            # Vectores de los dos enlaces anteriores
+            v1 = coords[i-1] - coords[i-2]
+            v2 = coords[i-2] - coords[i-3]
             
-            coords.append(tuple(current_pos))
+            # Normalizar vectores
+            v1 = v1 / np.linalg.norm(v1)
+            v2 = v2 / np.linalg.norm(v2)
             
+            # Ángulos para este residuo
+            phi, psi = angles[i]
+            
+            # Convertir a radianes
+            phi_rad = np.deg2rad(phi)
+            psi_rad = np.deg2rad(psi)
+            
+            # Calcular el producto cruzado para obtener el vector normal
+            normal = np.cross(v2, v1)
+            if np.linalg.norm(normal) > 0:
+                normal = normal / np.linalg.norm(normal)
+            else:
+                normal = np.array([0, 0, 1])  # Vector por defecto
+            
+            # Crear matriz de rotación basada en phi y psi
+            # Esto es una simplificación del algoritmo real de construcción de proteínas
+            cos_phi = np.cos(phi_rad)
+            sin_phi = np.sin(phi_rad)
+            cos_psi = np.cos(psi_rad)
+            sin_psi = np.sin(psi_rad)
+            
+            # Dirección del nuevo enlace (simplificado)
+            new_direction = (
+                v1 * cos_phi + 
+                normal * sin_phi * cos_psi + 
+                np.cross(v1, normal) * sin_phi * sin_psi
+            )
+            
+            # Asegurar que el vector esté normalizado
+            if np.linalg.norm(new_direction) > 0:
+                new_direction = new_direction / np.linalg.norm(new_direction)
+            else:
+                new_direction = v1  # Fallback
+                
+            # Posición del nuevo átomo
+            coords[i] = coords[i-1] + new_direction * bond_length
+            
+        return coords
+
+    def _refine_structure_with_hydrophobic_collapse(self, sequence: str, coords: np.ndarray, 
+                                                    iterations: int = 50, strength: float = 0.1) -> np.ndarray:
+        """
+        Refina la estructura aplicando una fuerza de colapso hidrofóbico.
+        
+        Args:
+            sequence: La secuencia de aminoácidos.
+            coords: Coordenadas iniciales.
+            iterations: Número de pasos de refinamiento.
+            strength: Fuerza del colapso.
+            
+        Returns:
+            Coordenadas refinadas.
+        """
+        # Escala de hidrofobicidad de Kyte-Doolittle (simplificada)
+        # Positivo = hidrofóbico, Negativo = hidrofílico
+        hydrophobicity = {
+            'I': 4.5, 'V': 4.2, 'L': 3.8, 'F': 2.8, 'C': 2.5, 'M': 1.9, 'A': 1.8,
+            'G': -0.4, 'T': -0.7, 'S': -0.8, 'W': -0.9, 'Y': -1.3, 'P': -1.6,
+            'H': -3.2, 'E': -3.5, 'Q': -3.5, 'D': -3.5, 'N': -3.5, 'K': -3.9, 'R': -4.5
+        }
+        
+        # Bucle de refinamiento
+        for _ in range(iterations):
+            # 1. Calcular el centro de masa (centroide) de la proteína
+            centroid = np.mean(coords, axis=0)
+            
+            # 2. Para cada residuo, aplicar una fuerza hacia o desde el centroide
+            for i, aa in enumerate(sequence):
+                score = hydrophobicity.get(aa, 0.0)
+                
+                # Si el residuo es hidrofóbico (score > 0), tirar de él hacia el centro
+                if score > 0:
+                    direction_vector = centroid - coords[i]
+                    # La fuerza es proporcional a la hidrofobicidad y a la distancia
+                    force_magnitude = (score / 4.5) * strength
+                    coords[i] += direction_vector * force_magnitude
+
         return coords
     
     def _generate_demo_pdb_content(self, sequence: str, job_name: str) -> str:
