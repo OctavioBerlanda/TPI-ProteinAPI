@@ -157,25 +157,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Visual Comparison -->
-        <div class="mt-4">
-          <h6>Comparación Visual:</h6>
-          <div class="border rounded p-3 bg-dark text-light" style="max-height: 200px; overflow-y: auto;">
-            <code class="d-block" style="white-space: pre-wrap; word-break: break-all; font-family: monospace;">
-                            {% set original = details.comparison.original_sequence %}
-                            {% set mutated = details.comparison.mutated_sequence %}
-                            {% for i in range(original|length) %}
-                                {% if original[i] != mutated[i] %}
-                                    <span class="bg-danger text-white px-1">{{ original[i] }}→{{ mutated[i] }}</span>
-                                {% else %}
-                                    {{ original[i] }}
-                                {% endif %}
-                            {% endfor %}
-                        </code>
-          </div>
-          <small class="text-muted">Las diferencias están resaltadas en rojo</small>
-        </div>
       </div>
     </div>
 
