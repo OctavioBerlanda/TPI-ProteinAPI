@@ -12,7 +12,9 @@ import numpy as np
 from typing import Dict, Optional, Tuple, Any, List
 from datetime import datetime
 from pathlib import Path
-from ..data.protein_database import ProteinDatabase
+from Bio.Blast import NCBIWWW, NCBIXML
+import re
+from .sequence_service import SequenceValidator
 
 class AlphaFoldIntegrationError(Exception):
     """Excepción personalizada para errores de integración con AlphaFold"""
@@ -39,10 +41,45 @@ class AlphaFoldService:
         
         # Crear directorio de modelos si no existe
         Path(self.models_directory).mkdir(parents=True, exist_ok=True)
-        
-        # Inicializar base de datos de proteínas conocidas
-        self.protein_db = ProteinDatabase()
-        print(f"🧬 Proteínas conocidas disponibles: {len(self.protein_db.proteins)}")
+
+    def _find_uniprot_id_with_blast(self, sequence: str) -> Optional[str]:
+    # Busca el UniProt ID de la proteína más similar 
+        print("🔬 Realizando búsqueda con BLASTp en NCBI...")
+        try:
+            # Realiza la búsqueda contra la base de datos Swiss-Prot (más curada)
+            result_handle = NCBIWWW.qblast("blastp", "swissprot", sequence, expect=10.0, hitlist_size=1)
+
+            # Guarda y parsea los resultados
+            with open("blast_results.xml", "w") as out_file:
+                out_file.write(result_handle.read())
+            result_handle.close()
+
+            with open("blast_results.xml", "r") as in_file:
+                blast_records = NCBIXML.parse(in_file)
+                
+                # Itera sobre los resultados (aunque solo pedimos 1)
+                for blast_record in blast_records:
+                    if not blast_record.alignments:
+                        print("⚠️ BLAST no encontró coincidencias significativas.")
+                        return None
+                    
+                    # Extrae el ID del primer y mejor resultado
+                    top_alignment = blast_record.alignments[0]
+                    accession = top_alignment.accession
+                    
+                    print(f"✅ Mejor coincidencia en BLAST: {top_alignment.title}")
+                    
+                    # La mayoría de las veces, el 'accession' es el UniProt ID.
+                    # Puedes agregar una expresión regular para asegurarte que es un ID válido.
+                    if re.match(r'^[A-Z0-9]{6,10}$', accession):
+                        print(f"🔑 UniProt ID encontrado: {accession}")
+                        return accession
+            
+            return None
+
+        except Exception as e:
+            print(f"❌ Error durante la búsqueda con BLAST: {str(e)}")
+            return None
     
     def predict_structure(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         """
@@ -157,66 +194,49 @@ class AlphaFoldService:
         }
     
     def _predict_with_alphafold_db(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
-        """
-        Busca en AlphaFold DB o usa predicción simplificada
-        
-        Args:
-            sequence: Secuencia de aminoácidos
-            job_name: Nombre del trabajo
-            
-        Returns:
-            Dict con resultados de la predicción
-        """
         if not job_name:
             job_name = f"protein_{int(time.time())}"
-        
-        # Intentar buscar una proteína similar en AlphaFold DB
-        print(f"🔍 Buscando estructura real para secuencia de {len(sequence)} residuos...")
-        search_result = self._search_similar_protein_in_alphafold_db(sequence)
-        
-        if search_result[0]:  # Si se encontró una URL
-            cif_url = search_result[0]
-            match_type = search_result[1]
-            similarity = search_result[2] if len(search_result) > 2 else 1.0
-            known_sequence = search_result[3] if len(search_result) > 3 else None
-            
-            print(f"✅ Encontrada estructura real en AlphaFold DB: {cif_url}")
+
+        # NUEVO: Usa BLAST para encontrar el UniProt ID
+        print(f"🔍 Buscando UniProt ID para secuencia de {len(sequence)} residuos usando BLAST...")
+        uniprot_id = self._find_uniprot_id_with_blast(sequence)
+
+        if uniprot_id:
+            print(f"✅ UniProt ID {uniprot_id} encontrado. Descargando desde AlphaFold DB...")
             try:
-                model_path = self._download_real_alphafold_structure(cif_url, job_name)
-                
-                # Calcular confianza basada en el tipo de coincidencia
-                if match_type == 'exact':
-                    confidence = 95.0  # Máxima confianza para coincidencias exactas
-                elif match_type == 'similar':
-                    # Para mutaciones, usar algoritmo de simulación mejorada
-                    print(f"🔬 Proteína conocida con mutaciones - usando simulación mejorada")
-                    # No asignar confianza aquí, usar simulación
-                    return self._predict_improved_simulation(sequence, job_name, is_mutation=True)
+                # Obtiene la información de la API de AlphaFold
+                api_url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
+                response = requests.get(api_url, timeout=20)
+                response.raise_for_status()
+                data = response.json()
+
+                if data and data[0].get('cifUrl'):
+                    cif_url = data[0]['cifUrl']
+                    model_path = self._download_real_alphafold_structure(cif_url, job_name)
+                    
+                    # Asumimos alta confianza si se encuentra en la base de datos
+                    confidence = 95.0
+                    
+                    return {
+                        'job_id': f"alphafold_blast_{job_name}",
+                        'model_path': model_path,
+                        'model_url': cif_url,
+                        'confidence': confidence,
+                        'confidence_scores': [confidence] * len(sequence),
+                        'prediction_method': 'alphafold_db_blast',
+                        'sequence_length': len(sequence),
+                        'uniprot_id': uniprot_id
+                    }
                 else:
-                    confidence = 90.0
-                
-                return {
-                    'job_id': f"alphafold_real_{job_name}",
-                    'model_path': model_path,
-                    'model_url': cif_url,
-                    'confidence': round(confidence, 2),
-                    'confidence_scores': [confidence] * len(sequence),
-                    'prediction_method': 'alphafold_db_real',
-                    'sequence_length': len(sequence),
-                    'match_type': match_type,
-                    'similarity': similarity if match_type == 'similar' else 1.0
-                }
+                    print(f"⚠️ No se encontró una estructura para {uniprot_id} en AlphaFold DB.")
+
             except Exception as e:
-                print(f"⚠️ Error descargando estructura real: {e}")
-                print("🔄 Fallback a predicción simulada...")
-        else:
-            print("⚠️ No se encontró estructura similar en AlphaFold DB")
-            print("🔄 Usando predicción simulada...")
+                print(f"⚠️ Error descargando estructura desde AlphaFold DB: {e}")
         
-        # Si no se encuentra ninguna proteína similar, usar simulación mejorada
-        print("🔄 Usando simulación mejorada...")
+        # Si BLAST falla o no encuentra nada, vuelve a tu simulación
+        print("🔄 No se encontró una estructura en AlphaFold DB. Usando simulación mejorada...")
         return self._predict_improved_simulation(sequence, job_name, is_mutation=False)
-    
+
     def _download_model(self, model_url: str, job_name: str) -> str:
         """
         Descarga el modelo 3D desde la URL proporcionada
@@ -760,50 +780,6 @@ SOURCE   3 EXPRESSION_SYSTEM: ALPHAFOLD PREDICTION;
         
         return analysis
     
-    def _search_similar_protein_in_alphafold_db(self, sequence: str) -> Optional[str]:
-        """
-        Busca una proteína similar en AlphaFold DB basada en secuencia conocida
-        
-        Args:
-            sequence: Secuencia de aminoácidos a buscar
-            
-        Returns:
-            URL del archivo CIF si encuentra una coincidencia, None si no
-        """
-        # Buscar coincidencia exacta primero
-        exact_match = self.protein_db.search_exact_match(sequence)
-        if exact_match:
-            uniprot_id, protein_data = exact_match
-            print(f"✅ Coincidencia EXACTA encontrada: {protein_data['name']} (UniProt: {uniprot_id})")
-            try:
-                url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-                response = requests.get(url, timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data:
-                        return data[0].get('cifUrl'), 'exact'
-            except Exception as e:
-                print(f"⚠️ Error accediendo a AlphaFold API para {uniprot_id}: {e}")
-        
-        # Buscar secuencias similares (>95% similitud)
-        similar_matches = self.protein_db.search_similar_sequences(sequence, min_similarity=0.95)
-        if similar_matches:
-            uniprot_id, protein_data, similarity = similar_matches[0]  # Tomar la más similar
-            print(f"✅ Coincidencia de alta similitud ({similarity:.1%}) encontrada: {protein_data['name']} (UniProt: {uniprot_id})")
-            try:
-                url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
-                response = requests.get(url, timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data:
-                        return data[0].get('cifUrl'), 'similar', similarity, protein_data['sequence']
-            except Exception as e:
-                print(f"⚠️ Error accediendo a AlphaFold API para {uniprot_id}: {e}")
-        
-        print(f"❌ No se encontró estructura conocida para esta secuencia específica")
-        print(f"📊 Base de datos consultada: {len(self.protein_db.proteins)} proteínas")
-        return None, 'none'
-
     def _download_real_alphafold_structure(self, cif_url: str, job_name: str) -> str:
         """
         Descarga una estructura real de AlphaFold DB
@@ -857,49 +833,59 @@ SOURCE   3 EXPRESSION_SYSTEM: ALPHAFOLD PREDICTION;
         
         return matches / min_len
 
-    def _predict_improved_simulation(self, sequence: str, job_name: str = None, is_mutation: bool = False) -> Dict[str, Any]:
+def _predict_improved_simulation(self, sequence: str, job_name: str = None, 
+                                     is_mutation: bool = False, 
+                                     original_sequence: str = None) -> Dict[str, Any]:
         """
-        Predicción mejorada usando simulación para mutaciones de proteínas conocidas
-        
-        Args:
-            sequence: Secuencia de aminoácidos
-            job_name: Nombre del trabajo
-            is_mutation: Si es una mutación de una proteína conocida
-            
-        Returns:
-            Dict con resultados de la predicción mejorada
+        Predicción mejorada usando simulación, ahora sensible al impacto de la mutación.
         """
         if not job_name:
             job_name = f"protein_{int(time.time())}"
         
-        print(f"🔬 Usando simulación mejorada para {'mutación' if is_mutation else 'nueva secuencia'}")
-        
-        # Usar el algoritmo de confianza mejorado
-        confidence = self._estimate_confidence(sequence)
-        
-        # Ajustar confianza para mutaciones conocidas
         if is_mutation:
-            # Las mutaciones de proteínas conocidas tienen mayor base de confianza
-            confidence = max(78, min(85, confidence + 8))  # Rango 78-85% para mutaciones, ajustado para ~81%
-            print(f"📊 Confianza ajustada para mutación conocida: {confidence:.1f}%")
+            print(f"🔬 Usando simulación mejorada para la secuencia MUTADA.")
         else:
-            # Para secuencias completamente nuevas, reducir confianza significativamente
-            confidence = max(35, min(55, confidence - 25))  # Rango 35-55% para secuencias nuevas
-            print(f"📊 Confianza para secuencia nueva: {confidence:.1f}%")
+            print(f"🔬 Usando simulación mejorada para secuencia NUEVA/DESCONOCIDA.")
         
-        # Crear archivo CIF simulado con estructura secundaria mejorada
+        # 1. Calcular la confianza base usando el algoritmo general
+        base_confidence = self._estimate_confidence(sequence)
+        final_confidence = base_confidence
+
+        # 2. Si es una mutación, calcular el impacto y ajustar la confianza
+        if is_mutation and original_sequence:
+            print("🔬 Analizando el impacto de la mutación en la confianza...")
+            # Encontrar la mutación (asumimos una sola para este ejemplo)
+            diffs = SequenceValidator.find_differences(original_sequence, sequence)
+            
+            if diffs:
+                # Usamos la primera diferencia encontrada
+                pos, orig_aa, mut_aa = diffs[0]
+                
+                # Llamamos a la nueva función estática de SequenceValidator
+                impact_score = SequenceValidator._calculate_mutation_impact_score(orig_aa, mut_aa)
+                
+                # Ajustamos la confianza final con el impacto
+                final_confidence += impact_score
+                
+                print(f"📊 La mutación {orig_aa}{pos}{mut_aa} tiene un impacto de {impact_score:.1f} puntos en la confianza.")
+        
+        # 3. Ajustar la confianza final a un rango realista
+        final_confidence = max(30.0, min(95.0, final_confidence))
+        print(f"📊 Confianza final estimada: {final_confidence:.1f}%")
+
+        # 4. Crear el archivo CIF simulado con la estructura
         model_path = self._create_demo_model(sequence, job_name)
         
         return {
             'job_id': f"improved_sim_{job_name}",
             'model_path': model_path,
             'model_url': None,
-            'confidence': round(confidence, 2),
-            'confidence_scores': [confidence] * len(sequence),
-            'prediction_method': 'improved_simulation',
+            'confidence': round(final_confidence, 2),
+            'confidence_scores': [final_confidence] * len(sequence),
+            'prediction_method': 'improved_simulation_with_impact',
             'sequence_length': len(sequence),
             'is_mutation': is_mutation,
-            'algorithm_used': 'chou_fasman_enhanced'
+            'algorithm_used': 'chou_fasman_and_mutation_impact'
         }
 
 def create_alphafold_service(config: Dict[str, Any]) -> AlphaFoldService:

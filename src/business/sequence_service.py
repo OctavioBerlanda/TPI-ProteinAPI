@@ -13,6 +13,40 @@ class SequenceValidator:
         'A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I',
         'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y', 'V'
     }
+    @classmethod
+    def _calculate_mutation_impact_score(cls, original_aa: str, mutated_aa: str) -> float:
+        """
+        Calcula una puntuación de impacto basada en el cambio de propiedades de los aminoácidos.
+        Devuelve un valor entre -10 y 10 (negativo = desestabilizante).
+        """
+        properties = {
+            # 'Hydrophobicity', 'Size', 'Charge' (-1=neg, 0=neu, 1=pos)
+            'A': (1.8, 1, 0), 'V': (4.2, 3, 0), 'L': (3.8, 4, 0), 'I': (4.5, 4, 0),
+            'P': (-1.6, 2, 0), 'F': (2.8, 5, 0), 'W': (-0.9, 6, 0), 'M': (1.9, 4, 0),
+            'G': (-0.4, 0, 0), 'S': (-0.8, 1, 0), 'T': (-0.7, 2, 0), 'C': (2.5, 2, 0),
+            'Y': (-1.3, 6, 0), 'N': (-3.5, 2, 0), 'Q': (-3.5, 3, 0), 'D': (-3.5, 2, -1),
+            'E': (-3.5, 3, -1), 'K': (-3.9, 4, 1), 'R': (-4.5, 5, 1), 'H': (-3.2, 4, 1)
+        }
+        
+        orig_props = properties.get(original_aa, (0, 0, 0))
+        mut_props = properties.get(mutated_aa, (0, 0, 0))
+
+        # 1. Impacto por hidrofobicidad (máx 5 puntos de penalización)
+        hydro_impact = -abs(orig_props[0] - mut_props[0]) / 2.0
+        
+        # 2. Impacto por tamaño (máx 3 puntos de penalización)
+        size_impact = -abs(orig_props[1] - mut_props[1]) / 2.0
+        
+        # 3. Impacto por carga (penalización severa si cambia)
+        charge_impact = -5 if orig_props[2] != mut_props[2] else 0
+        
+        # Penalización especial si se muta a Prolina
+        proline_penalty = -3 if mutated_aa == 'P' and original_aa != 'P' else 0
+
+        total_impact = hydro_impact + size_impact + charge_impact + proline_penalty
+        
+        return max(-10.0, total_impact)
+
     
     # Nombres completos de aminoácidos para mensajes más descriptivos
     AMINO_ACID_NAMES = {

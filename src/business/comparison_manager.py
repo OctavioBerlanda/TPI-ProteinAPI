@@ -205,46 +205,58 @@ class ComparisonManager:
             result['errors'].append(f"Error procesando comparación: {str(e)}")
             return result
     
-    def _process_alphafold_predictions(self, comparison_id: int, original_sequence: str, 
-                                     mutated_sequence: str, comparison_name: str = None) -> Dict[str, Any]:
+    def _process_alphafold_predictions(self, comparison_id: int, original_sequence: str, mutated_sequence: str, comparison_name: str = None) -> Dict[str, Any]:
         """
-        Procesa las predicciones de AlphaFold para ambas secuencias
-        
-        Args:
-            comparison_id: ID de la comparación
-            original_sequence: Secuencia original
-            mutated_sequence: Secuencia mutada
-            comparison_name: Nombre de la comparación
-            
-        Returns:
-            Dict con resultados de AlphaFold
+        Procesa las predicciones de AlphaFold para ambas secuencias con lógica optimizada.
         """
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
-        
-        # Predecir estructura de secuencia original
-        original_job_name = f"{comparison_name}_original"
+
+        # --- INICIO DE LA NUEVA LÓGICA ---
+
+        # 1. Obtener la estructura de REFERENCIA para la secuencia ORIGINAL.
+        #    Esta es la única vez que necesitamos buscar en la base de datos (y usar BLAST).
+        print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
+        original_job_name = f"{comparison_name}_original_ref"
         original_result = self.alphafold_service.predict_structure(
             original_sequence, original_job_name
         )
+
+        # 2. PREDECIR la estructura para la secuencia MUTADA.
+        #    Aquí no buscamos en la base de datos. Forzamos el uso de la predicción/simulación.
+        #    Asumimos que la mutación no estará en la base de datos.
+        print("\n➡️  Paso 2: Prediciendo directamente la estructura para la secuencia mutada...")
+        mutated_job_name = f"{comparison_name}_mutated_pred"
         
-        # Predecir estructura de secuencia mutada
-        mutated_job_name = f"{comparison_name}_mutated"
-        mutated_result = self.alphafold_service.predict_structure(
-            mutated_sequence, mutated_job_name
-        )
-        
-        # Comparar estructuras
+        # Verificamos si ColabFold está disponible para la predicción de la mutante
+        if self.alphafold_service._is_colabfold_available():
+            print("🔬 Usando ColabFold para la predicción de la mutación...")
+            mutated_result = self.alphafold_service._predict_with_colabfold(
+                mutated_sequence, mutated_job_name
+            )
+        else:
+                # Si no, usamos la simulación mejorada directamente
+                print("🔬 Usando simulación mejorada para la predicción de la mutación...")
+                mutated_result = self.alphafold_service._predict_improved_simulation(
+                    mutated_sequence, 
+                    mutated_job_name, 
+                    is_mutation=True,
+                    original_sequence=original_sequence  # <--- ¡Asegúrate de pasar este argumento!
+                )
+
+        # --- FIN DE LA NUEVA LÓGICA ---
+
+        # 3. Comparar ambas estructuras (esto no cambia)
+        print("\n➡️  Paso 3: Comparando ambas estructuras...")
         structural_comparison = self.alphafold_service.compare_structures(
             original_result, mutated_result
         )
-        
+
         return {
             'original': original_result,
             'mutated': mutated_result,
             'comparison': structural_comparison
-        }
-    
+        }    
     def _update_comparison_alphafold_data(self, comparison_id: int, alphafold_results: Dict[str, Any]):
         """
         Actualiza la comparación con los datos de AlphaFold
