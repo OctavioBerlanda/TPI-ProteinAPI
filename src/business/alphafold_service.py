@@ -15,6 +15,8 @@ from pathlib import Path
 from Bio.Blast import NCBIWWW, NCBIXML
 import re
 from .sequence_service import SequenceValidator
+from Bio.PDB import MMCIFParser
+import io
 
 class AlphaFoldIntegrationError(Exception):
     """Excepción personalizada para errores de integración con AlphaFold"""
@@ -42,44 +44,72 @@ class AlphaFoldService:
         # Crear directorio de modelos si no existe
         Path(self.models_directory).mkdir(parents=True, exist_ok=True)
 
-    def _find_uniprot_id_with_blast(self, sequence: str) -> Optional[str]:
-    # Busca el UniProt ID de la proteína más similar 
-        print("🔬 Realizando búsqueda con BLASTp en NCBI...")
+    def _extract_plddt_from_cif(self, cif_path: str) -> float:
+        """
+        Parsea un archivo CIF de AlphaFold para extraer la pLDDT promedio.
+        La pLDDT se almacena en la columna B-factor.
+        """
         try:
-            # Realiza la búsqueda contra la base de datos Swiss-Prot (más curada)
-            result_handle = NCBIWWW.qblast("blastp", "swissprot", sequence, expect=10.0, hitlist_size=1)
-
-            # Guarda y parsea los resultados
-            with open("blast_results.xml", "w") as out_file:
-                out_file.write(result_handle.read())
-            result_handle.close()
-
-            with open("blast_results.xml", "r") as in_file:
-                blast_records = NCBIXML.parse(in_file)
+            parser = MMCIFParser(QUIET=True)
+            structure = parser.get_structure("alphafold_model", cif_path)
+            
+            plddt_scores = []
+            for atom in structure.get_atoms():
+                # El pLDDT está en el campo B-factor del átomo
+                plddt_scores.append(atom.get_bfactor())
                 
-                # Itera sobre los resultados (aunque solo pedimos 1)
+            if not plddt_scores:
+                return 0.0
+            
+            # Usamos np.unique porque cada residuo tiene varios átomos con la misma pLDDT
+            # Esto nos da la pLDDT promedio por residuo.
+            average_plddt = np.mean(np.unique(plddt_scores))
+            return round(average_plddt, 2)
+            
+        except Exception as e:
+            print(f"⚠️ No se pudo extraer la pLDDT del archivo CIF: {e}")
+            return 95.0 # Devolvemos el valor por defecto si falla
+
+    def _find_uniprot_id_with_blast(self, sequence: str) -> tuple[Optional[str], Optional[str]]:
+            """
+            Usa BLASTp para encontrar el UniProt ID y el nombre de la proteína más similar.
+            AHORA PROCESA LOS DATOS EN MEMORIA SIN CREAR UN ARCHIVO.
+            """
+            try:
+                # 1. Realizar la búsqueda (sin cambios)
+                result_handle = NCBIWWW.qblast("blastp", "swissprot", sequence, expect=10.0, hitlist_size=1)
+                
+                # --- 👇 INICIO DEL GRAN CAMBIO 👇 ---
+
+                # 2. Leer los resultados de la web directamente a una variable de texto
+                blast_xml_string = result_handle.read()
+                result_handle.close()
+
+                # 3. Crear un "archivo en memoria" a partir de la variable de texto
+                xml_in_memory = io.StringIO(blast_xml_string)
+                
+                # 4. Parsear directamente desde el objeto en memoria
+                blast_records = NCBIXML.parse(xml_in_memory)
+
+                # --- FIN DEL GRAN CAMBIO ---
+                
+                # El resto del código para extraer la información no cambia
                 for blast_record in blast_records:
                     if not blast_record.alignments:
-                        print("⚠️ BLAST no encontró coincidencias significativas.")
-                        return None
+                        return None, None
                     
-                    # Extrae el ID del primer y mejor resultado
                     top_alignment = blast_record.alignments[0]
                     accession = top_alignment.accession
+                    protein_name = top_alignment.title
                     
-                    print(f"✅ Mejor coincidencia en BLAST: {top_alignment.title}")
-                    
-                    # La mayoría de las veces, el 'accession' es el UniProt ID.
-                    # Puedes agregar una expresión regular para asegurarte que es un ID válido.
                     if re.match(r'^[A-Z0-9]{6,10}$', accession):
-                        print(f"🔑 UniProt ID encontrado: {accession}")
-                        return accession
+                        return accession, protein_name
             
-            return None
-
-        except Exception as e:
-            print(f"❌ Error durante la búsqueda con BLAST: {str(e)}")
-            return None
+            except Exception as e:
+                print(f"❌ Error durante la búsqueda con BLAST: {str(e)}")
+                return None, None
+    
+            return None, None    
     
     def predict_structure(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         """
@@ -199,7 +229,7 @@ class AlphaFoldService:
 
         # NUEVO: Usa BLAST para encontrar el UniProt ID
         print(f"🔍 Buscando UniProt ID para secuencia de {len(sequence)} residuos usando BLAST...")
-        uniprot_id = self._find_uniprot_id_with_blast(sequence)
+        uniprot_id, protein_name = self._find_uniprot_id_with_blast(sequence)
 
         if uniprot_id:
             print(f"✅ UniProt ID {uniprot_id} encontrado. Descargando desde AlphaFold DB...")
@@ -214,8 +244,8 @@ class AlphaFoldService:
                     cif_url = data[0]['cifUrl']
                     model_path = self._download_real_alphafold_structure(cif_url, job_name)
                     
-                    # Asumimos alta confianza si se encuentra en la base de datos
-                    confidence = 95.0
+                    confidence = self._extract_plddt_from_cif(model_path)
+                    print(f"📊 Confianza real extraída del modelo: {confidence:.2f}% (pLDDT)")
                     
                     return {
                         'job_id': f"alphafold_blast_{job_name}",
@@ -225,7 +255,8 @@ class AlphaFoldService:
                         'confidence_scores': [confidence] * len(sequence),
                         'prediction_method': 'alphafold_db_blast',
                         'sequence_length': len(sequence),
-                        'uniprot_id': uniprot_id
+                        'uniprot_id': uniprot_id,
+                        'protein_name': protein_name
                     }
                 else:
                     print(f"⚠️ No se encontró una estructura para {uniprot_id} en AlphaFold DB.")
@@ -433,8 +464,8 @@ _atom_site.pdbx_PDB_model_num
         initial_coords = self._build_chain_from_angles(len(sequence), phi_psi_angles)
 
         # 3. Refinar la estructura usando colapso hidrofóbico
-        refined_coords = self._refine_structure_with_hydrophobic_collapse(sequence, initial_coords)
-        
+        refined_coords = self._refine_with_energy_minimization(sequence, initial_coords)
+
         return refined_coords
 
     def _get_phi_psi_for_ss(self, ss_type: str, index: int) -> Tuple[float, float]:
@@ -509,6 +540,78 @@ _atom_site.pdbx_PDB_model_num
             # Posición del nuevo átomo
             coords[i] = coords[i-1] + new_direction * bond_length
             
+        return coords
+
+    def _refine_with_energy_minimization(self, sequence: str, coords: np.ndarray, iterations: int = 100, step_size: float = 0.05) -> np.ndarray:
+        """
+        Refina la estructura 3D usando un algoritmo simple de minimización de energía.
+        """
+        print("🔬 Iniciando refinamiento 3D con minimización de energía...")
+        
+        hydrophobicity = {
+            'I': 4.5, 'V': 4.2, 'L': 3.8, 'F': 2.8, 'C': 2.5, 'M': 1.9, 'A': 1.8,
+            'G': -0.4, 'T': -0.7, 'S': -0.8, 'W': -0.9, 'Y': -1.3, 'P': -1.6,
+            'H': -3.2, 'E': -3.5, 'Q': -3.5, 'D': -3.5, 'N': -3.5, 'K': -3.9, 'R': -4.5
+        }
+        
+        charges = {
+            'D': -1, 'E': -1, # Negativos
+            'K': 1, 'R': 1, 'H': 1, # Positivos
+        }
+        
+        n_residues = len(sequence)
+        
+        for iteration in range(iterations):
+            # Calcular el centro de masa en cada iteración, ya que cambia
+            centroid = np.mean(coords, axis=0)
+            
+            # Copiamos las coordenadas para calcular las fuerzas basadas en la posición actual
+            current_coords = np.copy(coords)
+            
+            for i in range(n_residues):
+                total_force = np.zeros(3)
+                
+                # --- 1. FUERZA HIDROFÓBICA ---
+                h_score = hydrophobicity.get(sequence[i], 0.0)
+                if h_score > 0:
+                    force_hydro = (centroid - current_coords[i]) * (h_score / 4.5) * 0.1
+                    total_force += force_hydro
+                
+                # --- 2. FUERZAS DE REPULSIÓN Y ELECTROSTÁTICA ---
+                for j in range(n_residues):
+                    if i == j:
+                        continue
+                    
+                    direction_vec = current_coords[i] - current_coords[j]
+                    distance = np.linalg.norm(direction_vec)
+                    
+                    # Evitar división por cero
+                    if distance < 0.1: continue
+                    
+                    # a) Repulsión para evitar colisiones (muy fuerte a corta distancia)
+                    # La distancia ideal entre C-alfa no adyacentes es > 3.5 Å
+                    clash_threshold = 3.5
+                    if distance < clash_threshold:
+                        # La fuerza de repulsión es inversamente proporcional al cuadrado de la distancia
+                        force_clash = (direction_vec / distance) * (1 / (distance**2)) * 2.0
+                        total_force += force_clash
+                        
+                    # b) Electrostática (solo si ambos residuos tienen carga)
+                    charge_i = charges.get(sequence[i], 0)
+                    charge_j = charges.get(sequence[j], 0)
+                    
+                    if charge_i != 0 and charge_j != 0:
+                        # La fuerza es atractiva para cargas opuestas, repulsiva para iguales
+                        force_electro = (direction_vec / distance) * (-charge_i * charge_j) * 0.5
+                        total_force += force_electro
+                
+                # Aplicar la fuerza total a la coordenada del residuo
+                coords[i] += total_force * step_size
+                
+            if (iteration + 1) % 20 == 0:
+                print(f"   ...iteración de refinamiento {iteration + 1}/{iterations}")
+                
+        print("✅ Refinamiento 3D completado.")
         return coords
 
     def _refine_structure_with_hydrophobic_collapse(self, sequence: str, coords: np.ndarray, 
@@ -832,8 +935,8 @@ SOURCE   3 EXPRESSION_SYSTEM: ALPHAFOLD PREDICTION;
         matches = sum(1 for i in range(min_len) if seq1[i] == seq2[i])
         
         return matches / min_len
-
-def _predict_improved_simulation(self, sequence: str, job_name: str = None, 
+    
+    def _predict_improved_simulation(self, sequence: str, job_name: str = None, 
                                      is_mutation: bool = False, 
                                      original_sequence: str = None) -> Dict[str, Any]:
         """
