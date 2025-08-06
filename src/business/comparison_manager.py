@@ -284,12 +284,12 @@ class ComparisonManager:
                 'mutated_model_path': mutated.get('model_path'),
                 'original_prediction_url': original.get('model_url'),
                 'mutated_prediction_url': mutated.get('model_url'),
-                'original_confidence_score': original.get('confidence'),
-                'mutated_confidence_score': mutated.get('confidence'),
+                'original_confidence_score': float(original.get('confidence', 0.0)),
+                'mutated_confidence_score': float(mutated.get('confidence', 0.0)),
                 'alphafold_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
-                'processing_time': original.get('processing_time', 0) + mutated.get('processing_time', 0),
+                'processing_time': float(original.get('processing_time', 0.0) + mutated.get('processing_time', 0.0)),
                 'structural_changes': structural_changes,
-                'rmsd_value': comparison.get('rmsd_value'),
+                'rmsd_value': float(comparison.get('rmsd_value', 0.0)),
                 'status': 'completed'
             }
             
