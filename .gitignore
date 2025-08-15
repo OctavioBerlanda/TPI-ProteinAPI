@@ -119,3 +119,6 @@ config/local_settings.py
 TEMP_*.md
 DEBUG_*.md
 TEST_*.md
+
+
+.pyc
