@@ -212,8 +212,6 @@ class ComparisonManager:
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
 
-        # --- INICIO DE LA NUEVA LÓGICA ---
-
         # 1. Obtener la estructura de REFERENCIA para la secuencia ORIGINAL.
         #    Esta es la única vez que necesitamos buscar en la base de datos (y usar BLAST).
         print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
@@ -222,7 +220,7 @@ class ComparisonManager:
             original_sequence, original_job_name
         )
 
-        # 2. PREDECIR la estructura para la secuencia MUTADA.
+         # 2. PREDECIR la estructura para la secuencia MUTADA.
         #    Aquí no buscamos en la base de datos. Forzamos el uso de la predicción/simulación.
         #    Asumimos que la mutación no estará en la base de datos.
         print("\n➡️  Paso 2: Prediciendo directamente la estructura para la secuencia mutada...")
@@ -231,18 +229,21 @@ class ComparisonManager:
         # Verificamos si ColabFold está disponible para la predicción de la mutante
         if self.alphafold_service._is_colabfold_available():
             print("🔬 Usando ColabFold para la predicción de la mutación...")
+            # Llamamos directamente al método de ColabFold para forzar la predicción
             mutated_result = self.alphafold_service._predict_with_colabfold(
                 mutated_sequence, mutated_job_name
             )
         else:
-                # Si no, usamos la simulación mejorada directamente
-                print("🔬 Usando simulación mejorada para la predicción de la mutación...")
-                mutated_result = self.alphafold_service._predict_improved_simulation(
-                    mutated_sequence, 
-                    mutated_job_name, 
-                    is_mutation=True,
-                    original_sequence=original_sequence  # <--- ¡Asegúrate de pasar este argumento!
-                )
+            # Si ColabFold no está disponible, usamos tu simulación mejorada como fallback.
+            # Es crucial informar que la calidad de la comparación será menor.
+            print("⚠️ ADVERTENCIA: ColabFold no está disponible. Usando simulación local como fallback.")
+            print("La comparación estructural puede no ser precisa.")
+            mutated_result = self.alphafold_service._predict_improved_simulation(
+                mutated_sequence, 
+                mutated_job_name, 
+                is_mutation=True,
+                original_sequence=original_sequence
+            )
 
         # --- FIN DE LA NUEVA LÓGICA ---
 
@@ -256,7 +257,7 @@ class ComparisonManager:
             'original': original_result,
             'mutated': mutated_result,
             'comparison': structural_comparison
-        }    
+        }
     def _update_comparison_alphafold_data(self, comparison_id: int, alphafold_results: Dict[str, Any]):
         """
         Actualiza la comparación con los datos de AlphaFold
