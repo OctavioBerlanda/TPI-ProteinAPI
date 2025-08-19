@@ -197,7 +197,12 @@
           <div class="row">
             <div class="col-md-4">
               <div class="text-center">
-                <h5>RMSD</h5>
+                <h5>RMSD
+                  <i class="fas fa-question-circle text-muted" data-bs-toggle="tooltip" data-bs-placement="top"
+                    title="Root Mean Square Deviation - Mide la diferencia estructural entre las dos proteínas. Valores < 2.0 Å indican estructuras muy similares, 2.0-5.0 Å moderadamente diferentes, y > 5.0 Å muy diferentes."
+                    style="font-size: 0.8em; cursor: help;">
+                  </i>
+                </h5>
                 <div
                   class="display-4 text-{{ 'success' if comparison.comparison.rmsd_value and comparison.comparison.rmsd_value < 2.0 else 'warning' if comparison.comparison.rmsd_value and comparison.comparison.rmsd_value < 5.0 else 'danger' }}">
                   {{ "%.3f"|format(comparison.comparison.rmsd_value or 0) }}
@@ -391,7 +396,9 @@
       "hasOriginal": comparison.comparison.original_model_path != None,
       "hasMutated": comparison.comparison.mutated_model_path != None,
       "originalModelUrl": url_for('main.get_model_file_as_pdb', comparison_id=comparison_id, model_type='original', _external=True) if comparison.comparison.original_model_path else None,
-      "mutatedModelUrl": url_for('main.get_model_file_as_pdb', comparison_id=comparison_id, model_type='mutated', _external=True) if comparison.comparison.mutated_model_path else None
+      "mutatedModelUrl": url_for('main.get_model_file_as_pdb', comparison_id=comparison_id, model_type='mutated', _external=True) if comparison.comparison.mutated_model_path else None,
+      "originalMethod": comparison.comparison.get('prediction_method', '').split(',')[0] if comparison.comparison.get('prediction_method') else 'unknown',
+      "mutatedMethod": comparison.comparison.get('prediction_method', '').split(',')[-1] if comparison.comparison.get('prediction_method') else 'unknown'
     } | tojson
   }}
 </script>
@@ -432,11 +439,13 @@
 
     // --- PASO 2: Usar los datos leídos ---
     // Ya no hay Jinja aquí. Todo es JavaScript puro.
-    const hasOriginal = config.hasOriginal;
-    const hasMutated = config.hasMutated;
     const originalModelUrl = config.originalModelUrl;
     const mutatedModelUrl = config.mutatedModelUrl;
     const comparisonId = config.comparisonId;
+    const originalMethod = config.originalMethod;
+    const mutatedMethod = config.mutatedMethod;
+    const hasOriginal = config.hasOriginal;
+    const hasMutated = config.hasMutated;
 
     // Configurar las barras de progreso usando data-width
     $('.progress-bar[data-width]').each(function () {
@@ -511,61 +520,40 @@
 
     // Función para limpiar componentes
     function clearComponents() {
-      currentComponents.forEach(comp => stage.removeComponent(comp));
-      currentComponents = [];
+      if (stage) {
+        stage.removeAllComponents();
+      }
     }
 
     // Función para cargar modelo original
     function loadOriginalModel() {
       if (!originalModelUrl) return;
-
-      console.log('🎯 Iniciando carga del modelo original:', originalModelUrl);
-      const startTime = performance.now();
-
       clearComponents();
-
-      // NGL inferirá el formato desde la URL y los headers
       stage.loadFile(originalModelUrl).then(function (component) {
-        const loadTime = performance.now() - startTime;
-        console.log(`✅ Modelo original cargado en ${loadTime.toFixed(2)}ms`);
+        $('#loading-message').hide();
 
-        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
-        const loadingElement = document.getElementById('loading-message');
-        if (loadingElement) {
-          loadingElement.remove();
-          console.log('🔄 Loading element completely removed from DOM');
+        // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
+        if (originalMethod && originalMethod.includes('simulation')) {
+          // Es una simulación (solo CA), mostramos una representación más honesta
+          component.addRepresentation("ball+stick", {
+            aspectRatio: 1.5,
+            radius: 0.4
+          });
+          component.addRepresentation("line", {
+            color: "grey",
+            linewidth: 4
+          });
+          console.log('✅ Modelo original (simulado) renderizado con ball+stick');
+        } else {
+          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
+          component.addRepresentation("cartoon", {
+            color: "chainid",
+            radius: 0.5
+          });
+          console.log('✅ Modelo original (real) renderizado con cartoon');
         }
-
-        currentComponents.push(component);
-
-        // Mejorar la visualización para estructuras CA-only
-        component.addRepresentation("cartoon", {
-          color: "chainid",
-          opacity: 0.8,
-          radius: 0.5,  // Hacer el cartoon más grueso
-          smoothSheet: true
-        });
-
-        // Añadir representación de bolas para los CA
-        component.addRepresentation("ball+stick", {
-          sele: "all",  // Mostrar todos los átomos
-          color: "chainid",
-          ballScale: 0.3,
-          stickRadius: 0.1
-        });
-
-        // Añadir backbone como línea
-        component.addRepresentation("line", {
-          color: "chainid",
-          linewidth: 3,
-          opacity: 0.6
-        });
-
         component.autoView();
-        console.log('✅ Representaciones mejoradas añadidas al modelo original');
       }).catch(function (error) {
-        console.error('❌ Error cargando modelo original:', error);
-        console.error('URL que falló:', originalModelUrl);
         showError('No se pudo cargar el modelo original: ' + error.message);
       });
     }
@@ -573,54 +561,33 @@
     // Función para cargar modelo mutado
     function loadMutatedModel() {
       if (!mutatedModelUrl) return;
-
-      console.log('🧪 Iniciando carga del modelo mutado:', mutatedModelUrl);
-      const startTime = performance.now();
-
       clearComponents();
-
-      // NGL inferirá el formato desde la URL y los headers
       stage.loadFile(mutatedModelUrl).then(function (component) {
-        const loadTime = performance.now() - startTime;
-        console.log(`✅ Modelo mutado cargado en ${loadTime.toFixed(2)}ms`);
+        $('#loading-message').hide();
 
-        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
-        const loadingElement = document.getElementById('loading-message');
-        if (loadingElement) {
-          loadingElement.remove();
-          console.log('🔄 Loading element completely removed from DOM');
+        // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
+        if (mutatedMethod && mutatedMethod.includes('simulation')) {
+          // Es una simulación (solo CA), mostramos una representación más honesta
+          component.addRepresentation("ball+stick", {
+            aspectRatio: 1.5,
+            radius: 0.4,
+            color: "red"
+          });
+          component.addRepresentation("line", {
+            color: "grey",
+            linewidth: 4
+          });
+          console.log('✅ Modelo mutado (simulado) renderizado con ball+stick');
+        } else {
+          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
+          component.addRepresentation("cartoon", {
+            color: "chainid",
+            radius: 0.5
+          });
+          console.log('✅ Modelo mutado (real) renderizado con cartoon');
         }
-
-        currentComponents.push(component);
-
-        // Mejorar la visualización para estructuras CA-only
-        component.addRepresentation("cartoon", {
-          color: "chainid",
-          opacity: 0.8,
-          radius: 0.5,  // Hacer el cartoon más grueso
-          smoothSheet: true
-        });
-
-        // Añadir representación de bolas para los CA
-        component.addRepresentation("ball+stick", {
-          sele: "all",  // Mostrar todos los átomos
-          color: "chainid",
-          ballScale: 0.3,
-          stickRadius: 0.1
-        });
-
-        // Añadir backbone como línea
-        component.addRepresentation("line", {
-          color: "chainid",
-          linewidth: 3,
-          opacity: 0.6
-        });
-
         component.autoView();
-        console.log('✅ Representaciones mejoradas añadidas al modelo mutado');
       }).catch(function (error) {
-        console.error('❌ Error cargando modelo mutado:', error);
-        console.error('URL que falló:', mutatedModelUrl);
         showError('No se pudo cargar el modelo mutado: ' + error.message);
       });
     }
