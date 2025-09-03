@@ -207,37 +207,50 @@ class ComparisonManager:
     
     def _process_alphafold_predictions(self, comparison_id: int, original_sequence: str, mutated_sequence: str, comparison_name: str = None) -> Dict[str, Any]:
         """
-        Procesa las predicciones de AlphaFold para ambas secuencias con lógica optimizada.
+        Procesa las predicciones de AlphaFold para ambas secuencias con una jerarquía de métodos.
         """
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
 
-        # 1. Obtener la estructura de REFERENCIA para la secuencia ORIGINAL.
-        #    Esta es la única vez que necesitamos buscar en la base de datos (y usar BLAST).
+        # --- Paso 1: Obtener la estructura ORIGINAL (sin cambios) ---
         print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
         original_job_name = f"{comparison_name}_original_ref"
         original_result = self.alphafold_service.predict_structure(
             original_sequence, original_job_name
         )
 
-         # 2. PREDECIR la estructura para la secuencia MUTADA.
-        #    Aquí no buscamos en la base de datos. Forzamos el uso de la predicción/simulación.
-        #    Asumimos que la mutación no estará en la base de datos.
+        # --- Paso 2: Predecir la estructura MUTADA con la mejor herramienta disponible ---
         print("\n➡️  Paso 2: Prediciendo directamente la estructura para la secuencia mutada...")
         mutated_job_name = f"{comparison_name}_mutated_pred"
         
-        # Verificamos si ColabFold está disponible para la predicción de la mutante
+        mutated_result = None
+        
+        # Jerarquía de predicción:
+        # 1. Intentar con ColabFold si está disponible (ideal para predicción de novo)
         if self.alphafold_service._is_colabfold_available():
-            print("🔬 Usando ColabFold para la predicción de la mutación...")
-            # Llamamos directamente al método de ColabFold para forzar la predicción
-            mutated_result = self.alphafold_service._predict_with_colabfold(
-                mutated_sequence, mutated_job_name
-            )
-        else:
-            # Si ColabFold no está disponible, usamos tu simulación mejorada como fallback.
-            # Es crucial informar que la calidad de la comparación será menor.
-            print("⚠️ ADVERTENCIA: ColabFold no está disponible. Usando simulación local como fallback.")
-            print("La comparación estructural puede no ser precisa.")
+            try:
+                mutated_result = self.alphafold_service._predict_with_colabfold(
+                    mutated_sequence, mutated_job_name
+                )
+            except Exception as e:
+                print(f"⚠️ ColabFold falló: {e}. Intentando con SWISS-MODEL.")
+
+        # 2. Si ColabFold no está disponible o falla, intentar con SWISS-MODEL
+        if not mutated_result:
+            try:
+                # Asegúrate de que tu config tenga el token de SWISS-MODEL
+                if self.alphafold_service.config.get('SWISS_MODEL_TOKEN'):
+                    mutated_result = self.alphafold_service._predict_with_swiss_model(
+                        mutated_sequence, mutated_job_name
+                    )
+                else:
+                    print("⚠️ SWISS-MODEL no configurado (falta token).")
+            except Exception as e:
+                print(f"⚠️ SWISS-MODEL falló: {e}. Usando simulación local como último recurso.")
+
+        # 3. Como último recurso, usar la simulación local
+        if not mutated_result:
+            print("⚠️ ADVERTENCIA: Usando simulación local como fallback. La calidad será inferior.")
             mutated_result = self.alphafold_service._predict_improved_simulation(
                 mutated_sequence, 
                 mutated_job_name, 
@@ -245,9 +258,7 @@ class ComparisonManager:
                 original_sequence=original_sequence
             )
 
-        # --- FIN DE LA NUEVA LÓGICA ---
-
-        # 3. Comparar ambas estructuras (esto no cambia)
+        # --- Paso 3: Comparar ambas estructuras (sin cambios) ---
         print("\n➡️  Paso 3: Comparando ambas estructuras...")
         structural_comparison = self.alphafold_service.compare_structures(
             original_result, mutated_result

@@ -22,6 +22,7 @@ class Config:
     UNIPROT_API_BASE_URL = os.environ.get('UNIPROT_API_BASE_URL') or 'https://rest.uniprot.org/uniprotkb'
     ALPHAFOLD_API_ENDPOINT = os.environ.get('ALPHAFOLD_API_ENDPOINT') or 'https://alphafolddb.org/api'
     COLABFOLD_ENDPOINT = os.environ.get('COLABFOLD_ENDPOINT') or 'http://localhost:8080'
+    SWISS_MODEL_TOKEN = os.environ.get('SWISS_MODEL_TOKEN') or '9760500d5ab9a0ea91779f61b8a5215512856d92'
     
     # Configuración de AlphaFold
     MODELS_DIRECTORY = os.environ.get('MODELS_DIRECTORY') or 'models/alphafold'
@@ -54,6 +55,7 @@ def get_config_dict(config_name='development'):
     return {
         'ALPHAFOLD_API_ENDPOINT': config_class.ALPHAFOLD_API_ENDPOINT,
         'COLABFOLD_ENDPOINT': config_class.COLABFOLD_ENDPOINT,
+        'SWISS_MODEL_TOKEN': config_class.SWISS_MODEL_TOKEN,
         'MODELS_DIRECTORY': config_class.MODELS_DIRECTORY,
         'API_TIMEOUT': config_class.API_TIMEOUT,
         'MAX_SEQUENCE_LENGTH': config_class.MAX_SEQUENCE_LENGTH,

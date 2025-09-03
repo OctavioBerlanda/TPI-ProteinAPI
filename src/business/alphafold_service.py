@@ -223,6 +223,86 @@ class AlphaFoldService:
             'sequence_length': len(sequence)
         }
     
+    def _predict_with_swiss_model(self, sequence: str, job_name: str) -> Dict[str, Any]:
+        """
+        Predice la estructura usando la API de SWISS-MODEL (modelado por homología).
+        """
+        print("🔬 Usando SWISS-MODEL para la predicción de la mutación...")
+        start_time = time.time()
+        
+        # Obtener el token desde la configuración
+        api_token = self.config.get('SWISS_MODEL_TOKEN')
+        if not api_token:
+            raise AlphaFoldIntegrationError("No se encontró el token de SWISS-MODEL en la configuración.")
+
+        headers = {'Authorization': f'Token {api_token}'}
+        
+        # --- 1. Enviar el trabajo de modelado ---
+        submit_payload = {
+            "target_sequence": sequence,
+            "project_title": job_name
+        }
+        submit_url = "https://swissmodel.expasy.org/automodel"
+        
+        try:
+            response = requests.post(submit_url, headers=headers, json=submit_payload)
+            response.raise_for_status()
+            project_id = response.json()['project_id']
+            print(f"✅ Trabajo enviado a SWISS-MODEL con ID: {project_id}")
+        except requests.exceptions.RequestException as e:
+            raise AlphaFoldIntegrationError(f"Error al enviar el trabajo a SWISS-MODEL: {e}")
+
+        # --- 2. Esperar a que el trabajo se complete ---
+        status_url = f"https://swissmodel.expasy.org/project/{project_id}/models/summary/"
+        max_checks = 30  # Máximo de 5 minutos (30 * 10 segundos)
+        for check_num in range(max_checks):
+            try:
+                status_response = requests.get(status_url, headers=headers)
+                status_response.raise_for_status()
+                status_data = status_response.json()
+
+                job_status = status_data.get("status")
+                print(f"   ... Estado del trabajo ({check_num+1}/{max_checks}): {job_status}")
+                
+                if job_status == "COMPLETED":
+                    print("✅ Trabajo completado.")
+                    break
+                elif job_status in ["FAILED", "REJECTED"]:
+                    raise AlphaFoldIntegrationError(f"El trabajo en SWISS-MODEL falló o fue rechazado.")
+                
+                time.sleep(10) # Esperar 10 segundos entre verificaciones
+            except requests.exceptions.RequestException as e:
+                raise AlphaFoldIntegrationError(f"Error al verificar el estado del trabajo: {e}")
+        else:
+            raise AlphaFoldIntegrationError("El trabajo en SWISS-MODEL tardó demasiado en completarse.")
+
+        # --- 3. Descargar el mejor modelo (PDB) ---
+        models = status_data.get("models", [])
+        if not models:
+            raise AlphaFoldIntegrationError("SWISS-MODEL completó el trabajo pero no generó modelos.")
+        
+        # El mejor modelo suele ser el primero (01)
+        best_model_info = models[0]
+        model_url = best_model_info["coordinates_url"]
+        
+        # La confianza se mide con QMEAN, un score de -4 a 0 (más cercano a 0 es mejor)
+        # Lo convertiremos a una escala de 0-100 para que sea consistente
+        qmean_score = best_model_info.get("qmean", {}).get("z_score", -4.0)
+        confidence = max(0, min(100, 100 * (1 - (abs(qmean_score) / 4.0))))
+        
+        model_path = self._download_model(model_url, job_name) # Reutilizamos tu función de descarga
+        processing_time = time.time() - start_time
+        
+        return {
+            'job_id': project_id,
+            'model_path': model_path,
+            'model_url': model_url,
+            'confidence': round(confidence, 2),
+            'prediction_method': 'swiss_model_homology',
+            'sequence_length': len(sequence),
+            'processing_time': processing_time
+        }
+    
     def _predict_with_alphafold_db(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         if not job_name:
             job_name = f"protein_{int(time.time())}"
