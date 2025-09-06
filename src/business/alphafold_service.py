@@ -25,7 +25,7 @@ class AlphaFoldIntegrationError(Exception):
 class AlphaFoldService:
     """
     Servicio para integración con AlphaFold
-    Soporta tanto la API web como ColabFold local
+    Soporta la API web y SWISS-MODEL para predicciones
     """
     
     def __init__(self, config: Dict[str, Any]):
@@ -37,7 +37,6 @@ class AlphaFoldService:
         """
         self.config = config
         self.api_endpoint = config.get('ALPHAFOLD_API_ENDPOINT', 'https://alphafolddb.org/api')
-        self.colabfold_endpoint = config.get('COLABFOLD_ENDPOINT', 'http://localhost:8080')
         self.models_directory = config.get('MODELS_DIRECTORY', 'models/alphafold')
         self.timeout = config.get('API_TIMEOUT', 300)  # 5 minutos
         
@@ -71,49 +70,182 @@ class AlphaFoldService:
             return 95.0 # Devolvemos el valor por defecto si falla
 
     def _find_uniprot_id_with_blast(self, sequence: str) -> tuple[Optional[str], Optional[str]]:
-            """
-            Usa BLASTp para encontrar el UniProt ID y el nombre de la proteína más similar.
-            AHORA PROCESA LOS DATOS EN MEMORIA SIN CREAR UN ARCHIVO.
-            """
-            try:
-                # 1. Realizar la búsqueda (sin cambios)
-                result_handle = NCBIWWW.qblast("blastp", "swissprot", sequence, expect=10.0, hitlist_size=1)
-                
-                # --- 👇 INICIO DEL GRAN CAMBIO 👇 ---
+        """
+        Encuentra el UniProt ID para una secuencia usando la API de búsqueda de UniProt.
+        Este método es extremadamente rápido y busca tanto en Swiss-Prot como TrEMBL.
+        (El nombre se mantiene por compatibilidad, pero ya no usa BLAST).
+        """
+        print(f"🔍 Buscando UniProt ID para secuencia de {len(sequence)} residuos vía API de búsqueda optimizada...")
+        
+        # Intentar múltiples estrategias de búsqueda
+        strategies = [
+            ("Swiss-Prot (revisado)", "reviewed:true"),
+            ("UniProtKB completo", "*"),  # Incluye TrEMBL
+        ]
+        
+        for strategy_name, base_query in strategies:
+            print(f"   🔍 Probando en {strategy_name}...")
+            result = self._search_with_strategy(sequence, base_query)
+            if result[0]:  # Si encontró algo
+                return result
+        
+        print("   ⚠️ No se encontró en ninguna base de datos de UniProt.")
+        return None, None
 
-                # 2. Leer los resultados de la web directamente a una variable de texto
-                blast_xml_string = result_handle.read()
-                result_handle.close()
-
-                # 3. Crear un "archivo en memoria" a partir de la variable de texto
-                xml_in_memory = io.StringIO(blast_xml_string)
-                
-                # 4. Parsear directamente desde el objeto en memoria
-                blast_records = NCBIXML.parse(xml_in_memory)
-
-                # --- FIN DEL GRAN CAMBIO ---
-                
-                # El resto del código para extraer la información no cambia
-                for blast_record in blast_records:
-                    if not blast_record.alignments:
-                        return None, None
-                    
-                    top_alignment = blast_record.alignments[0]
-                    accession = top_alignment.accession
-                    protein_name = top_alignment.title
-                    
-                    if re.match(r'^[A-Z0-9]{6,10}$', accession):
-                        return accession, protein_name
+    def _search_with_strategy(self, sequence: str, base_query: str) -> tuple[Optional[str], Optional[str]]:
+        """Ejecuta una estrategia de búsqueda específica"""
+        try:
+            search_url = "https://rest.uniprot.org/uniprotkb/search"
+            seq_length = len(sequence)
             
+            # Paso 1: Búsqueda por longitud exacta
+            query = f"(length:[{seq_length} TO {seq_length}]) AND ({base_query})"
+            params = {
+                'query': query,
+                'fields': 'accession,protein_name,sequence',
+                'format': 'json',
+                'size': 1000  # Aumentar significativamente el tamaño
+            }
+            
+            response = requests.get(search_url, params=params, timeout=45)
+            response.raise_for_status()
+            
+            data = response.json()
+            results = data.get('results', [])
+            
+            if results:
+                print(f"     � Comparando secuencia con {len(results)} candidatos...")
+                
+                # Buscar coincidencia exacta de secuencia
+                for result in results:
+                    if 'sequence' in result and 'value' in result['sequence']:
+                        if result['sequence']['value'] == sequence:
+                            uniprot_id = result.get('primaryAccession')
+                            protein_name = self._extract_protein_name(result)
+                            
+                            print(f"✅ UniProt ID {uniprot_id} encontrado por coincidencia exacta.")
+                            return uniprot_id, protein_name
+                
+                # Paso 2: Si no hay coincidencia exacta, buscar por similitud alta
+                print(f"     🔬 No hay coincidencia exacta. Buscando alta similitud...")
+                best_match = self._find_best_similarity_match(sequence, results)
+                if best_match:
+                    return best_match
+            
+            # Paso 3: Búsqueda más amplia sin filtro de longitud
+            print(f"     🌐 Expandiendo búsqueda sin filtro de longitud...")
+            return self._broad_search(sequence, base_query)
+                
+        except requests.exceptions.RequestException as e:
+            print(f"     ❌ Error durante la búsqueda: {str(e)}")
+            return None, None
+        except Exception as e:
+            print(f"     ❌ Error inesperado: {str(e)}")
+            return None, None
+
+    def _find_best_similarity_match(self, sequence: str, results: list) -> tuple[Optional[str], Optional[str]]:
+        """Encuentra la mejor coincidencia por similitud"""
+        best_similarity = 0.0
+        best_match = None
+        
+        for result in results[:100]:  # Limitar para rendimiento
+            if 'sequence' in result and 'value' in result['sequence']:
+                result_seq = result['sequence']['value']
+                similarity = self._calculate_similarity(sequence, result_seq)
+                
+                if similarity > best_similarity and similarity > 0.90:  # 90% de similitud mínima
+                    best_similarity = similarity
+                    uniprot_id = result.get('primaryAccession')
+                    protein_name = self._extract_protein_name(result)
+                    best_match = (uniprot_id, protein_name)
+        
+        if best_match:
+            print(f"✅ Mejor coincidencia: {best_match[0]} (similitud: {best_similarity:.1%})")
+            return best_match
+        
+        return None, None
+
+    def _broad_search(self, sequence: str, base_query: str) -> tuple[Optional[str], Optional[str]]:
+        """Búsqueda amplia usando fragmentos distintivos"""
+        if len(sequence) < 20:
+            return None, None
+            
+        # Usar fragmentos más grandes y distintivos
+        fragment_size = min(20, len(sequence) // 3)
+        fragments = [
+            sequence[:fragment_size],  # Inicio
+            sequence[len(sequence)//2-fragment_size//2:len(sequence)//2+fragment_size//2],  # Medio
+            sequence[-fragment_size:]  # Final
+        ]
+        
+        search_url = "https://rest.uniprot.org/uniprotkb/search"
+        
+        for i, fragment in enumerate(fragments):
+            try:
+                print(f"     🧩 Buscando fragmento {i+1}: {fragment[:15]}...")
+                
+                # Buscar el fragmento en la base de datos
+                params = {
+                    'query': base_query,
+                    'fields': 'accession,protein_name,sequence',
+                    'format': 'json',
+                    'size': 200
+                }
+                
+                response = requests.get(search_url, params=params, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                results = data.get('results', [])
+                
+                # Buscar el fragmento en las secuencias
+                for result in results:
+                    if 'sequence' in result and 'value' in result['sequence']:
+                        result_seq = result['sequence']['value']
+                        if fragment in result_seq:
+                            # Verificar si la secuencia completa tiene alta similitud
+                            similarity = self._calculate_similarity(sequence, result_seq)
+                            if similarity > 0.85:  # 85% de similitud para fragmentos
+                                uniprot_id = result.get('primaryAccession')
+                                protein_name = self._extract_protein_name(result)
+                                print(f"✅ Coincidencia por fragmento: {uniprot_id} (similitud: {similarity:.1%})")
+                                return uniprot_id, protein_name
+                        
             except Exception as e:
-                print(f"❌ Error durante la búsqueda con BLAST: {str(e)}")
-                return None, None
-    
-            return None, None    
+                print(f"     ⚠️ Error en fragmento {i+1}: {e}")
+                continue
+        
+        return None, None
+
+    def _extract_protein_name(self, result: dict) -> str:
+        """Extrae el nombre de la proteína del resultado de UniProt"""
+        try:
+            if 'proteinDescription' in result and 'recommendedName' in result['proteinDescription']:
+                if 'fullName' in result['proteinDescription']['recommendedName']:
+                    return result['proteinDescription']['recommendedName']['fullName']['value']
+        except:
+            pass
+        return "Unknown Protein"
+
+    def _search_by_fragments(self, sequence: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Búsqueda por fragmentos de secuencia para mayor flexibilidad.
+        Usa fragmentos únicos de la secuencia para encontrar coincidencias.
+        OBSOLETO: Reemplazado por _broad_search pero mantenido para compatibilidad.
+        """
+        return self._broad_search(sequence, "reviewed:true")
+
+    def _calculate_similarity(self, seq1: str, seq2: str) -> float:
+        """Calcula la similitud entre dos secuencias"""
+        if len(seq1) != len(seq2):
+            return 0.0
+        
+        matches = sum(1 for a, b in zip(seq1, seq2) if a == b)
+        return matches / len(seq1)    
     
     def predict_structure(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         """
-        Predice la estructura 3D de una secuencia de proteína
+        Predice la estructura 3D de una secuencia de proteína usando SWISS-MODEL
         
         Args:
             sequence: Secuencia de aminoácidos
@@ -125,12 +257,10 @@ class AlphaFoldService:
         start_time = time.time()
         
         try:
-            # Intentar primero con ColabFold local si está disponible
-            if self._is_colabfold_available():
-                result = self._predict_with_colabfold(sequence, job_name)
-            else:
-                # Fallback a búsqueda en AlphaFold DB o predicción simple
-                result = self._predict_with_alphafold_db(sequence, job_name)
+            print(f"🔬 Iniciando predicción de estructura para secuencia de {len(sequence)} residuos...")
+            
+            # Usar SWISS-MODEL directamente para el modelado 3D
+            result = self._predict_with_swiss_model(sequence, job_name)
                 
             processing_time = time.time() - start_time
             result['processing_time'] = processing_time
@@ -167,67 +297,61 @@ class AlphaFoldService:
         except Exception as e:
             raise AlphaFoldIntegrationError(f"Error comparando estructuras: {str(e)}")
     
-    def _is_colabfold_available(self) -> bool:
-        """Verifica si ColabFold está disponible localmente"""
-        try:
-            response = requests.get(f"{self.colabfold_endpoint}/health", timeout=5)
-            return response.status_code == 200
-        except:
-            return False
-    
-    def _predict_with_colabfold(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
+    def _get_alphafold_data(self, sequence: str) -> Optional[Dict[str, Any]]:
         """
-        Predice estructura usando ColabFold local
+        Obtiene datos informativos de AlphaFold (UniProt ID, nombre, confianza) sin descargar modelo
         
         Args:
             sequence: Secuencia de aminoácidos
-            job_name: Nombre del trabajo
             
         Returns:
-            Dict con resultados de la predicción
+            Dict con datos de AlphaFold o None si no se encuentra
         """
-        if not job_name:
-            job_name = f"protein_{int(time.time())}"
-        
-        # Preparar datos para el job
-        job_data = {
-            'sequence': sequence,
-            'job_name': job_name,
-            'num_models': 1,
-            'use_amber': True,
-            'use_templates': False
-        }
-        
-        # Enviar trabajo a ColabFold
-        response = requests.post(
-            f"{self.colabfold_endpoint}/predict",
-            json=job_data,
-            timeout=self.timeout
-        )
-        
-        if response.status_code != 200:
-            raise AlphaFoldIntegrationError(f"Error en ColabFold: {response.text}")
-        
-        result = response.json()
-        
-        # Descargar y guardar el modelo
-        model_path = self._download_model(result['model_url'], job_name)
-        
-        return {
-            'job_id': result['job_id'],
-            'model_path': model_path,
-            'model_url': result['model_url'],
-            'confidence': result.get('mean_plddt', 0),
-            'confidence_scores': result.get('plddt_scores', []),
-            'prediction_method': 'colabfold',
-            'sequence_length': len(sequence)
-        }
+        try:
+            print(f"🔍 Obteniendo datos de AlphaFold para secuencia de {len(sequence)} residuos...")
+            
+            # Buscar UniProt ID usando la función existente
+            uniprot_id, protein_name = self._find_uniprot_id_with_blast(sequence)
+            
+            if uniprot_id:
+                print(f"✅ UniProt ID {uniprot_id} encontrado. Obteniendo datos de AlphaFold...")
+                
+                # Obtener información de la API de AlphaFold (sin descargar)
+                api_url = f"https://alphafold.ebi.ac.uk/api/prediction/{uniprot_id}"
+                response = requests.get(api_url, timeout=20)
+                response.raise_for_status()
+                data = response.json()
+                
+                if data and len(data) > 0:
+                    alphafold_info = data[0]
+                    return {
+                        'uniprot_id': uniprot_id,
+                        'protein_name': protein_name,
+                        'confidence': alphafold_info.get('confidenceAvg', 85.0),
+                        'alphafold_version': alphafold_info.get('modelCreatedDate', 'unknown'),
+                        'data_source': 'alphafold_db'
+                    }
+                else:
+                    print(f"⚠️ No se encontraron datos para {uniprot_id} en AlphaFold DB.")
+            
+            print("ℹ️ No se encontraron datos de AlphaFold para esta secuencia.")
+            return None
+            
+        except Exception as e:
+            print(f"⚠️ Error obteniendo datos de AlphaFold: {e}")
+            return None
     
     def _predict_with_swiss_model(self, sequence: str, job_name: str) -> Dict[str, Any]:
         """
-        Predice la estructura usando la API de SWISS-MODEL (modelado por homología).
+        Predice la estructura usando la API de SWISS-MODEL siguiendo el flujo asíncrono de 3 pasos:
+        1. Enviar trabajo (POST)
+        2. Verificar estado (GET polling)
+        3. Descargar modelo final (GET)
         """
-        print("🔬 Usando SWISS-MODEL para la predicción de la mutación...")
+        if not job_name:
+            job_name = f"swiss_model_{int(time.time())}"
+            
+        print(f"🔬 Iniciando predicción con SWISS-MODEL para: {job_name}")
         start_time = time.time()
         
         # Obtener el token desde la configuración
@@ -235,73 +359,171 @@ class AlphaFoldService:
         if not api_token:
             raise AlphaFoldIntegrationError("No se encontró el token de SWISS-MODEL en la configuración.")
 
-        headers = {'Authorization': f'Token {api_token}'}
+        headers = {
+            'Authorization': f'Token {api_token}',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
         
-        # --- 1. Enviar el trabajo de modelado ---
+        # --- PASO 1: Enviar el trabajo de modelado (Dejar el Encargo) ---
+        print("📤 Paso 1: Enviando trabajo a SWISS-MODEL...")
         submit_payload = {
-            "target_sequence": sequence,
+            "target_sequences": [sequence],  # Debe ser plural y una lista
             "project_title": job_name
         }
         submit_url = "https://swissmodel.expasy.org/automodel"
         
+        print(f"   📋 Payload: {submit_payload}")
+        print(f"   🔗 URL: {submit_url}")
+        
         try:
-            response = requests.post(submit_url, headers=headers, json=submit_payload)
+            response = requests.post(submit_url, headers=headers, json=submit_payload, timeout=60)
+            
+            print(f"   📊 Status Code: {response.status_code}")
+            
+            if response.status_code != 200:
+                print(f"   ❌ Response Text: {response.text}")
+                
             response.raise_for_status()
-            project_id = response.json()['project_id']
-            print(f"✅ Trabajo enviado a SWISS-MODEL con ID: {project_id}")
+            
+            project_data = response.json()
+            project_id = project_data.get('project_id')
+            
+            if not project_id:
+                raise AlphaFoldIntegrationError(f"SWISS-MODEL no devolvió un project_id válido. Response: {project_data}")
+                
+            print(f"✅ Trabajo enviado exitosamente. Project ID: {project_id}")
+            
         except requests.exceptions.RequestException as e:
-            raise AlphaFoldIntegrationError(f"Error al enviar el trabajo a SWISS-MODEL: {e}")
+            raise AlphaFoldIntegrationError(f"Error al enviar trabajo a SWISS-MODEL: {e}")
 
-        # --- 2. Esperar a que el trabajo se complete ---
+        # --- PASO 2: Verificar el estado del trabajo (Polling) ---
+        print("⏳ Paso 2: Verificando estado del trabajo...")
         status_url = f"https://swissmodel.expasy.org/project/{project_id}/models/summary/"
-        max_checks = 30  # Máximo de 5 minutos (30 * 10 segundos)
-        for check_num in range(max_checks):
+        
+        max_attempts = 30  # 30 intentos x 10 segundos = 5 minutos máximo
+        attempt = 0
+        
+        while attempt < max_attempts:
+            attempt += 1
+            
             try:
-                status_response = requests.get(status_url, headers=headers)
+                print(f"   🔄 Verificando estado ({attempt}/{max_attempts})...")
+                status_response = requests.get(status_url, headers=headers, timeout=30)
                 status_response.raise_for_status()
                 status_data = status_response.json()
 
-                job_status = status_data.get("status")
-                print(f"   ... Estado del trabajo ({check_num+1}/{max_checks}): {job_status}")
+                job_status = status_data.get("status", "UNKNOWN")
+                print(f"   📊 Estado actual: {job_status}")
                 
                 if job_status == "COMPLETED":
-                    print("✅ Trabajo completado.")
+                    print("✅ ¡Trabajo completado exitosamente!")
                     break
-                elif job_status in ["FAILED", "REJECTED"]:
-                    raise AlphaFoldIntegrationError(f"El trabajo en SWISS-MODEL falló o fue rechazado.")
-                
-                time.sleep(10) # Esperar 10 segundos entre verificaciones
+                elif job_status in ["FAILED", "REJECTED", "ERROR"]:
+                    error_msg = status_data.get("error_message", "Trabajo falló sin mensaje de error específico")
+                    raise AlphaFoldIntegrationError(f"El trabajo en SWISS-MODEL falló: {error_msg}")
+                elif job_status in ["PENDING", "RUNNING", "QUEUED"]:
+                    print(f"   ⏳ Trabajo en progreso ({job_status})... esperando 10 segundos")
+                    time.sleep(10)
+                else:
+                    print(f"   ⚠️ Estado desconocido: {job_status}... continuando")
+                    time.sleep(10)
+                    
             except requests.exceptions.RequestException as e:
-                raise AlphaFoldIntegrationError(f"Error al verificar el estado del trabajo: {e}")
+                print(f"   ⚠️ Error en verificación {attempt}: {e}")
+                if attempt >= max_attempts:
+                    raise AlphaFoldIntegrationError(f"Error persistente verificando estado: {e}")
+                time.sleep(10)
+                
         else:
-            raise AlphaFoldIntegrationError("El trabajo en SWISS-MODEL tardó demasiado en completarse.")
+            # Se agotaron los intentos sin completar
+            raise AlphaFoldIntegrationError("El trabajo en SWISS-MODEL tardó más de 5 minutos en completarse")
 
-        # --- 3. Descargar el mejor modelo (PDB) ---
+        # --- PASO 3: Descargar el modelo final ---
+        print("📥 Paso 3: Descargando modelo final...")
+        
+        # Extraer información del mejor modelo
         models = status_data.get("models", [])
         if not models:
-            raise AlphaFoldIntegrationError("SWISS-MODEL completó el trabajo pero no generó modelos.")
+            raise AlphaFoldIntegrationError("SWISS-MODEL completó pero no generó ningún modelo")
         
-        # El mejor modelo suele ser el primero (01)
-        best_model_info = models[0]
-        model_url = best_model_info["coordinates_url"]
+        print(f"   📊 Se generaron {len(models)} modelo(s)")
         
-        # La confianza se mide con QMEAN, un score de -4 a 0 (más cercano a 0 es mejor)
-        # Lo convertiremos a una escala de 0-100 para que sea consistente
-        qmean_score = best_model_info.get("qmean", {}).get("z_score", -4.0)
-        confidence = max(0, min(100, 100 * (1 - (abs(qmean_score) / 4.0))))
+        # Tomar el primer modelo (generalmente el mejor)
+        best_model = models[0]
+        model_url = best_model.get("coordinates_url")
         
-        model_path = self._download_model(model_url, job_name) # Reutilizamos tu función de descarga
+        if not model_url:
+            raise AlphaFoldIntegrationError("No se encontró URL de descarga para el modelo")
+        
+        print(f"🔗 URL del modelo: {model_url}")
+        
+        # Descargar el modelo
+        model_path = self._download_swiss_model_file(model_url, job_name, headers)
+        
+        # Extraer métricas de calidad y información de la proteína
+        gmqe_score = best_model.get("gmqe", 0.0)  # Global Model Quality Estimation (0-1)
+        qmean_score = best_model.get("qmean", {}).get("z_score", -4.0) if isinstance(best_model.get("qmean"), dict) else -4.0
+        
+        # GMQE es más confiable que QMEAN para confianza general
+        # GMQE va de 0 a 1, donde 1 es perfecto
+        if gmqe_score > 0:
+            confidence = gmqe_score * 100  # Convertir a porcentaje
+            confidence_source = "GMQE"
+        else:
+            # Fallback a QMEAN si GMQE no está disponible
+            confidence = max(0, min(100, 100 * (1 - abs(qmean_score) / 4.0)))
+            confidence_source = "QMEAN"
+        
+        # Extraer información adicional del proyecto si está disponible
+        protein_info = {}
+        if "target" in status_data:
+            target_info = status_data["target"]
+            if isinstance(target_info, dict):
+                protein_info = {
+                    "protein_name": target_info.get("description", "Unknown Protein"),
+                    "organism": target_info.get("organism", "Unknown"),
+                    "uniprot_id": target_info.get("uniprot_ac", None)
+                }
+        
+        # También extraer información del modelo si está disponible
+        if len(models) > 0:
+            model_info = models[0]
+            protein_info.update({
+                "model_id": model_info.get("model_id", None),
+                "model_status": model_info.get("status", None),
+                "gmqe_score": gmqe_score,
+                "confidence_source": confidence_source
+            })
+        
         processing_time = time.time() - start_time
         
-        return {
+        print(f"✅ Predicción completada en {processing_time:.1f}s con confianza {confidence:.1f}% ({confidence_source})")
+        if protein_info.get("protein_name"):
+            print(f"   🧬 Proteína identificada: {protein_info['protein_name']}")
+        if protein_info.get("model_id"):
+            print(f"   🆔 Modelo ID: {protein_info['model_id']}")
+        
+        result = {
             'job_id': project_id,
             'model_path': model_path,
             'model_url': model_url,
             'confidence': round(confidence, 2),
+            'qmean_score': qmean_score,
+            'gmqe_score': gmqe_score,
+            'confidence_source': confidence_source,
             'prediction_method': 'swiss_model_homology',
             'sequence_length': len(sequence),
-            'processing_time': processing_time
+            'processing_time': processing_time,
+            'model_count': len(models),
+            'best_model_info': best_model,
+            'project_info': status_data
         }
+        
+        # Añadir información de la proteína si está disponible
+        result.update(protein_info)
+        
+        return result
     
     def _predict_with_alphafold_db(self, sequence: str, job_name: str = None) -> Dict[str, Any]:
         if not job_name:
@@ -383,6 +605,69 @@ class AlphaFoldService:
             
         except Exception as e:
             raise AlphaFoldIntegrationError(f"Error descargando modelo: {str(e)}")
+    
+    def _download_swiss_model_file(self, model_url: str, job_name: str, headers: Dict[str, str]) -> str:
+        """
+        Descarga un archivo de modelo desde SWISS-MODEL con autenticación y manejo de compresión
+        
+        Args:
+            model_url: URL del archivo en SWISS-MODEL
+            job_name: Nombre del trabajo para el archivo local
+            headers: Headers con autenticación
+            
+        Returns:
+            Ruta local del archivo descargado (descomprimido si es necesario)
+        """
+        import gzip
+        
+        try:
+            print(f"📥 Descargando modelo desde: {model_url}")
+            
+            response = requests.get(model_url, headers=headers, timeout=60)
+            response.raise_for_status()
+            
+            # Determinar si está comprimido
+            is_compressed = model_url.endswith('.gz')
+            
+            # Determinar extensión final
+            if model_url.endswith('.pdb.gz') or model_url.endswith('.pdb'):
+                extension = '.pdb'
+            elif model_url.endswith('.cif.gz') or model_url.endswith('.cif'):
+                extension = '.cif'
+            else:
+                extension = '.pdb'  # Default para SWISS-MODEL
+            
+            # Crear nombre de archivo único
+            timestamp = int(time.time())
+            filename = f"swiss_model_{job_name}_{timestamp}{extension}"
+            file_path = os.path.join(self.models_directory, filename)
+            
+            # Procesar el contenido (descomprimir si es necesario)
+            content = response.content
+            if is_compressed:
+                print(f"   🗜️ Descomprimiendo archivo...")
+                content = gzip.decompress(content)
+            
+            # Guardar archivo descomprimido
+            with open(file_path, 'wb') as f:
+                f.write(content)
+            
+            # Verificar que es un archivo de texto válido
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    first_line = f.readline().strip()
+                    if first_line.startswith('HEADER') or first_line.startswith('data_'):
+                        print(f"✅ Modelo descargado y descomprimido: {filename} ({len(content)} bytes)")
+                        return file_path
+                    else:
+                        print(f"⚠️ Archivo descargado pero formato inusual. Primera línea: {first_line[:50]}...")
+                        return file_path
+            except UnicodeDecodeError:
+                print(f"⚠️ Archivo parece ser binario, pero guardado como: {filename}")
+                return file_path
+            
+        except Exception as e:
+            raise AlphaFoldIntegrationError(f"Error descargando modelo de SWISS-MODEL: {str(e)}")
     
     def _create_demo_model(self, sequence: str, job_name: str) -> str:
         """

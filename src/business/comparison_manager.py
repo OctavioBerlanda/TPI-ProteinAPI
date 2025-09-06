@@ -219,38 +219,19 @@ class ComparisonManager:
             original_sequence, original_job_name
         )
 
-        # --- Paso 2: Predecir la estructura MUTADA con la mejor herramienta disponible ---
+        # --- Paso 2: Predecir la estructura MUTADA con la nueva lógica SWISS-MODEL ---
         print("\n➡️  Paso 2: Prediciendo directamente la estructura para la secuencia mutada...")
         mutated_job_name = f"{comparison_name}_mutated_pred"
         
-        mutated_result = None
-        
-        # Jerarquía de predicción:
-        # 1. Intentar con ColabFold si está disponible (ideal para predicción de novo)
-        if self.alphafold_service._is_colabfold_available():
-            try:
-                mutated_result = self.alphafold_service._predict_with_colabfold(
-                    mutated_sequence, mutated_job_name
-                )
-            except Exception as e:
-                print(f"⚠️ ColabFold falló: {e}. Intentando con SWISS-MODEL.")
-
-        # 2. Si ColabFold no está disponible o falla, intentar con SWISS-MODEL
-        if not mutated_result:
-            try:
-                # Asegúrate de que tu config tenga el token de SWISS-MODEL
-                if self.alphafold_service.config.get('SWISS_MODEL_TOKEN'):
-                    mutated_result = self.alphafold_service._predict_with_swiss_model(
-                        mutated_sequence, mutated_job_name
-                    )
-                else:
-                    print("⚠️ SWISS-MODEL no configurado (falta token).")
-            except Exception as e:
-                print(f"⚠️ SWISS-MODEL falló: {e}. Usando simulación local como último recurso.")
-
-        # 3. Como último recurso, usar la simulación local
-        if not mutated_result:
-            print("⚠️ ADVERTENCIA: Usando simulación local como fallback. La calidad será inferior.")
+        # NUEVA LÓGICA: Usar directamente predict_structure que ya maneja SWISS-MODEL
+        try:
+            print("🔬 Usando SWISS-MODEL para la secuencia mutada...")
+            mutated_result = self.alphafold_service.predict_structure(
+                mutated_sequence, mutated_job_name
+            )
+        except AlphaFoldIntegrationError as e:
+            print(f"⚠️ SWISS-MODEL falló: {e}. Usando simulación local como fallback.")
+            # Como último recurso, usar la simulación local
             mutated_result = self.alphafold_service._predict_improved_simulation(
                 mutated_sequence, 
                 mutated_job_name, 

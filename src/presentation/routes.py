@@ -324,43 +324,62 @@ def get_model_file_as_pdb(comparison_id, model_type):
         print(f"❌ Archivo no encontrado: {model_path}", flush=True)
         abort(404)
     
-    print(f"🔄 Convirtiendo CIF a PDB: {model_path}", flush=True)
+    print(f"🔄 Preparando archivo para visualización: {model_path}", flush=True)
     
     try:
-        # Convertir CIF a PDB usando BioPython
-        from Bio.PDB import MMCIFParser, PDBIO
-        import tempfile
+        # Detectar el formato del archivo basado en la extensión
+        file_extension = os.path.splitext(model_path)[1].lower()
         
-        # Parsear CIF
-        parser = MMCIFParser(QUIET=True)
-        structure = parser.get_structure('temp', model_path)
-        
-        # Crear archivo PDB temporal
-        pdb_io = PDBIO()
-        pdb_io.set_structure(structure)
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as temp_pdb:
-            pdb_io.save(temp_pdb.name)
+        if file_extension == '.pdb':
+            # Si ya es PDB, servirlo directamente
+            print(f"✅ Archivo ya es PDB, sirviendo directamente", flush=True)
             
-            print(f"✅ CIF convertido a PDB exitosamente", flush=True)
-            
-            response = make_response(send_file(temp_pdb.name, as_attachment=False, mimetype='chemical/x-pdb'))
+            response = make_response(send_file(model_path, as_attachment=False, mimetype='chemical/x-pdb'))
             response.headers['Access-Control-Allow-Origin'] = '*'
             response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-            
-            # Limpiar archivo temporal después del envío
-            @response.call_on_close
-            def cleanup():
-                try:
-                    os.unlink(temp_pdb.name)
-                except:
-                    pass
-            
             return response
             
+        elif file_extension == '.cif':
+            # Si es CIF, convertir a PDB
+            print(f"🔄 Convirtiendo CIF a PDB", flush=True)
+            from Bio.PDB import MMCIFParser, PDBIO
+            import tempfile
+            
+            # Parsear CIF
+            parser = MMCIFParser(QUIET=True)
+            structure = parser.get_structure('temp', model_path)
+            
+            # Crear archivo PDB temporal
+            pdb_io = PDBIO()
+            pdb_io.set_structure(structure)
+            
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.pdb', delete=False) as temp_pdb:
+                pdb_io.save(temp_pdb.name)
+                
+                print(f"✅ CIF convertido a PDB exitosamente", flush=True)
+                
+                response = make_response(send_file(temp_pdb.name, as_attachment=False, mimetype='chemical/x-pdb'))
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+                
+                # Limpiar archivo temporal después del envío
+                @response.call_on_close
+                def cleanup():
+                    try:
+                        os.unlink(temp_pdb.name)
+                    except:
+                        pass
+                
+                return response
+        else:
+            # Formato no soportado
+            print(f"❌ Formato de archivo no soportado: {file_extension}", flush=True)
+            abort(400)
+            
     except Exception as e:
-        print(f"❌ Error convirtiendo CIF a PDB: {e}", flush=True)
+        print(f"❌ Error procesando archivo de modelo: {e}", flush=True)
         abort(500)
 
 # Manejo de errores

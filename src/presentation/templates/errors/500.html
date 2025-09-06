@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Error del Servidor - Comparador de Proteínas{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="alert alert-danger text-center">
+        <h1 class="display-4">🔧 Error del Servidor</h1>
+        <p class="lead">Lo sentimos, ha ocurrido un error interno en el servidor.</p>
+        <hr>
+        <p>Nuestro equipo técnico ha sido notificado del problema. Por favor, intenta nuevamente en unos minutos.</p>
+        <a href="{{ url_for('main.index') }}" class="btn btn-primary">
+          <i class="fas fa-home"></i> Volver al Inicio
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
