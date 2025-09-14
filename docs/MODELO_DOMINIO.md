@@ -149,6 +149,22 @@ User (1) -----> (N) ProteinComparison
   - `create_comparison()`: Crea nueva comparación en BD
   - `get_comparison_details()`: Recupera detalles de comparación
   - `get_user_comparisons()`: Lista comparaciones de usuario
+  - `create_comparison_with_alphafold()`: Crea comparación con predicción 3D
+
+#### 4.4. AlphaFoldService
+
+- **Responsabilidad**: Integración con Swiss-Model y AlphaFold Database
+- **Métodos principales**:
+  - `predict_structure()`: Coordina predicción de estructura 3D
+  - `_predict_with_swiss_model()`: Implementa flujo asíncrono Swiss-Model
+  - `_download_swiss_model_file()`: Descarga modelos PDB/CIF
+  - `compare_structures()`: Compara estructuras original vs mutada
+  - `cleanup_old_models()`: Gestión de archivos de modelos
+- **Características**:
+  - Timeout dinámico basado en longitud de secuencia
+  - Manejo de estados asíncronos (PENDING, RUNNING, COMPLETED)
+  - Extracción de métricas de calidad (GMQE, QMEAN)
+  - Integración con base de datos AlphaFold para información adicional
 
 ---
 
@@ -182,7 +198,21 @@ User (1) -----> (N) ProteinComparison
    - Sistema almacena comparación con trazabilidad (RN-007)
    - Sistema muestra resultados de mutaciones
 
-#### 6.2. Consultar Comparaciones de Usuario
+#### 6.2. Crear Comparación con Predicción 3D
+
+1. **Actor**: Usuario/Investigador
+2. **Precondición**: Usuario marca checkbox "Incluir Predicción de AlphaFold"
+3. **Flujo**:
+   - Sistema ejecuta flujo de comparación estándar
+   - Sistema inicia predicción Swiss-Model para secuencia original
+   - Sistema inicia predicción Swiss-Model para secuencia mutada
+   - Sistema aplica timeout dinámico según longitud (RN-009)
+   - Sistema descarga modelos 3D y extrae métricas de calidad
+   - Sistema almacena rutas de archivos y puntuaciones
+   - Sistema muestra resultados con enlace a análisis estructural
+4. **Postcondición**: Modelos 3D disponibles para descarga y visualización
+
+#### 6.3. Consultar Comparaciones de Usuario
 
 1. **Actor**: Usuario/Investigador
 2. **Flujo**:
@@ -190,13 +220,24 @@ User (1) -----> (N) ProteinComparison
    - Sistema busca usuario en BD
    - Sistema retorna lista de comparaciones históricas
 
-#### 6.3. Ver Detalles de Comparación
+#### 6.4. Ver Detalles de Comparación
 
 1. **Actor**: Usuario/Investigador
 2. **Flujo**:
    - Usuario selecciona comparación específica
    - Sistema recupera datos completos
    - Sistema muestra análisis detallado de mutaciones
+
+#### 6.5. Analizar Estructuras 3D
+
+1. **Actor**: Usuario/Investigador
+2. **Precondición**: Comparación con predicción 3D completada
+3. **Flujo**:
+   - Usuario hace clic en "Ver Análisis Estructural"
+   - Sistema recupera modelos 3D y métricas de calidad
+   - Sistema calcula RMSD entre estructuras
+   - Sistema muestra impacto predicted de las mutaciones
+   - Usuario puede descargar modelos PDB/CIF para análisis externo
 
 ---
 
@@ -228,19 +269,84 @@ User (1) -----> (N) ProteinComparison
 - **Frontend**: HTML5, Bootstrap 5, JavaScript (mínimo)
 - **Testing**: unittest (Python estándar)
 - **Validación**: WTForms, Flask-WTF
+- **APIs Externas**:
+  - **Swiss-Model API**: Predicción de estructuras 3D por homología
+  - **AlphaFold Database**: Consulta de datos de proteínas conocidas
+- **Formatos de Archivo**: PDB, CIF para modelos 3D
+- **Bibliotecas Científicas**:
+  - **BioPython**: Manejo de secuencias y estructuras
+  - **Requests**: Comunicación HTTP con APIs
+  - **NumPy**: Cálculos numéricos y análisis estructural
 
 ---
 
-### 9. EXTENSIBILIDAD FUTURA
+### 9. INTEGRACIÓN SWISS-MODEL Y ALPHAFOLD
+
+#### 9.1. Swiss-Model para Predicción 3D
+
+El sistema ahora incluye integración completa con **Swiss-Model** para predicción de estructuras 3D:
+
+##### **Flujo de Predicción 3D**
+
+1. **Envío del trabajo**: Secuencia enviada a Swiss-Model API
+2. **Polling asíncrono**: Verificación periódica del estado (cada 10 segundos)
+3. **Descarga del modelo**: Archivo PDB/CIF descargado automáticamente
+
+##### **Timeout Dinámico por Longitud de Secuencia**
+
+- **Secuencias ≤200 residuos**: Timeout de 5 minutos (30 intentos × 10s)
+- **Secuencias >200 residuos**: Timeout de 10 minutos (60 intentos × 10s)
+- **Estados válidos**: `PENDING`, `RUNNING`, `QUEUED`, `INITIALISED`, `COMPLETED`
+
+##### **Métricas de Calidad**
+
+- **GMQE Score**: Global Model Quality Estimation (0-1, preferido)
+- **QMEAN Score**: Qualitative Model Energy Analysis (Z-score)
+- **Confianza**: Calculada principalmente desde GMQE (× 100%)
+
+#### 9.2. AlphaFold para Datos Informativos
+
+**AlphaFold** se utiliza para obtener información de proteínas conocidas:
+
+- **UniProt ID**: Identificador de la proteína
+- **Nombre de proteína**: Descripción funcional
+- **Organismo**: Especie de origen
+- **Versión AlphaFold**: Versión de la base de datos
+
+#### 9.3. Reglas de Negocio de Integración
+
+##### **RN-008: Predicción 3D Opcional**
+
+- **Descripción**: La predicción 3D es opcional via checkbox en el formulario
+- **Implementación**: Campo `enable_alphafold` en comparaciones
+- **Duración**: Variable según longitud de secuencia (5-10 minutos)
+
+##### **RN-009: Gestión de Timeouts**
+
+- **Descripción**: Timeout dinámico basado en complejidad de la secuencia
+- **Criterio**: Secuencias >200 residuos reciben 10 minutos vs 5 minutos
+- **Justificación**: Secuencias largas requieren más tiempo de modelado
+
+##### **RN-010: Calidad de Modelos**
+
+- **Descripción**: Solo se aceptan modelos con métricas de calidad válidas
+- **GMQE mínimo**: >0.0 (preferido para confianza)
+- **QMEAN válido**: Z-score dentro de rangos aceptables
+- **Fallback**: Si GMQE no disponible, usar QMEAN normalizado
+
+### 10. EXTENSIBILIDAD FUTURA
 
 El modelo está diseñado para futuras extensiones:
 
-- **Integración AlphaFold**: Campos preparados para URLs de predicciones
-- **Visualización 3D**: Estructura base para almacenar datos de estructuras
-- **Análisis Avanzado**: Extensión para métricas de confianza (pLDDT)
-- **API REST**: Endpoints ya implementados para integración externa
+- **✅ Integración Swiss-Model**: Completamente implementada
+- **✅ Visualización 3D**: Archivos PDB/CIF descargables
+- **✅ Análisis Estructural**: Métricas GMQE y QMEAN integradas
+- **🔄 Visualizador 3D Web**: NGL Viewer o PyMol.js en desarrollo
+- **🔄 Comparación Estructural**: Cálculo de RMSD entre modelos
+- **🔄 Análisis de Dominios**: Identificación de regiones estructurales
 
 ---
 
-_Documentación generada para el proyecto de Comparador de Proteínas_  
-_Fecha: 30 de Junio, 2025_
+_Documentación actualizada para el proyecto de Comparador de Proteínas_  
+_Fecha: 14 de Septiembre, 2025_  
+_Incluye integración Swiss-Model y mejoras de timeout dinámico_
