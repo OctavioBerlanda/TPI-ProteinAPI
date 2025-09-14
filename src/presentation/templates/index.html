@@ -132,12 +132,12 @@
             </div>
           </div>
 
-          <!-- AlphaFold Option -->
+          <!-- Swiss-Model 3D Prediction Option -->
           <div class="row mb-4">
             <div class="col-md-12">
               <div class="card bg-light">
                 <div class="card-body">
-                  <h5 class="card-title text-primary">🧬 Predicción Estructural con AlphaFold</h5>
+                  <h5 class="card-title text-primary">🧬 Predicción de Estructura 3D con Swiss-Model</h5>
                   <div class="form-check">
                     {{ form.alpha_fold(class="form-check-input", id="alphaFoldCheck") }}
                     {{ form.alpha_fold.label(class="form-check-label", for="alphaFoldCheck") }}
@@ -145,17 +145,18 @@
                   <div class="form-text">
                     <small class="text-muted">
                       <i class="fas fa-info-circle me-1"></i>
-                      Incluir predicción de estructura 3D usando AlphaFold.
-                      Esto puede aumentar el tiempo de procesamiento pero proporcionará análisis estructural detallado.
+                      Incluir predicción de estructura 3D usando Swiss-Model para ambas secuencias.
+                      Esto proporcionará modelos 3D interactivos y análisis estructural comparativo.
                     </small>
                   </div>
                   <div id="alphaFoldInfo" class="alert alert-info mt-2" style="display: none;">
-                    <strong>📊 Análisis incluido:</strong>
+                    <strong>📊 Análisis 3D incluido con Swiss-Model:</strong>
                     <ul class="mb-0 mt-2">
-                      <li>Predicción de estructura 3D para ambas secuencias</li>
-                      <li>Análisis de confianza (pLDDT scores)</li>
+                      <li>Predicción de estructura 3D para ambas secuencias (original y mutada)</li>
+                      <li>Análisis de confianza (GMQE/QMEAN scores)</li>
                       <li>Cálculo de RMSD entre estructuras</li>
                       <li>Evaluación del impacto estructural de las mutaciones</li>
+                      <li>Visualización 3D interactiva con NGL Viewer</li>
                       <li>Modelos 3D descargables en formato PDB</li>
                     </ul>
                   </div>
@@ -181,15 +182,15 @@
                 <i class="fas fa-dna fa-spin me-2"></i>
                 Analizando Proteínas...
               </h5>
-              <p class="text-muted mb-3">Comparando secuencias y consultando base de datos BLAST</p>
-              
+              <p class="text-muted mb-3">Comparando secuencias</p>
+
               <div class="progress mb-3" style="height: 25px;">
-                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
-                     role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                  role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                   <span id="progressText">0%</span>
                 </div>
               </div>
-              
+
               <div id="progressSteps">
                 <small class="text-muted">
                   <span id="currentStep">Iniciando análisis...</span>
@@ -247,29 +248,29 @@
     const progressText = document.getElementById('progressText');
     const currentStep = document.getElementById('currentStep');
 
-    // Progress simulation steps - 60 seconds total with more intermediate phases
+    // Progress simulation steps - Swiss-Model workflow (6+ minutes for realistic timing)
     const progressSteps = [
       { progress: 5, text: "Inicializando análisis...", duration: 2000 },
       { progress: 10, text: "Validando formato de secuencias...", duration: 3000 },
       { progress: 15, text: "Verificando aminoácidos...", duration: 2500 },
-      { progress: 20, text: "Preparando consulta BLAST...", duration: 3000 },
-      { progress: 25, text: "Conectando con servidor NCBI...", duration: 2500 },
-      { progress: 30, text: "Configurando parámetros de búsqueda...", duration: 3000 },
-      { progress: 35, text: "Ejecutando BLAST local...", duration: 4000 },
-      { progress: 40, text: "Buscando homólogos en base de datos...", duration: 3500 },
-      { progress: 45, text: "Filtrando resultados por similitud...", duration: 3000 },
-      { progress: 50, text: "Analizando alineamientos...", duration: 3500 },
-      { progress: 55, text: "Evaluando significancia estadística...", duration: 3000 },
-      { progress: 60, text: "Identificando dominios conservados...", duration: 3500 },
-      { progress: 65, text: "Comparando estructuras secundarias...", duration: 3000 },
-      { progress: 70, text: "Prediciendo impacto de mutación...", duration: 4000 },
-      { progress: 75, text: "Analizando estabilidad proteica...", duration: 3500 },
-      { progress: 80, text: "Calculando energías de plegamiento...", duration: 3000 },
-      { progress: 85, text: "Evaluando conservación evolutiva...", duration: 3500 },
-      { progress: 90, text: "Generando visualizaciones...", duration: 3000 },
-      { progress: 93, text: "Compilando resultados...", duration: 2500 },
-      { progress: 96, text: "Preparando reporte final...", duration: 2000 },
-      { progress: 98, text: "Optimizando salida...", duration: 1500 },
+      { progress: 20, text: "Conectando con Swiss-Model...", duration: 3000 },
+      { progress: 25, text: "Enviando secuencias a Swiss-Model...", duration: 4000 },
+      { progress: 30, text: "Buscando plantillas estructurales...", duration: 8000 },
+      { progress: 35, text: "Alineando con estructuras conocidas...", duration: 10000 },
+      { progress: 40, text: "Seleccionando mejores plantillas...", duration: 8000 },
+      { progress: 45, text: "Construyendo modelo 3D inicial...", duration: 12000 },
+      { progress: 50, text: "Optimizando geometría molecular...", duration: 15000 },
+      { progress: 55, text: "Refinando estructura 3D...", duration: 12000 },
+      { progress: 60, text: "Calculando métricas de calidad (GMQE)...", duration: 10000 },
+      { progress: 65, text: "Evaluando calidad del modelo (QMEAN)...", duration: 8000 },
+      { progress: 70, text: "Generando archivo de estructura final...", duration: 6000 },
+      { progress: 75, text: "Procesando secuencia mutada...", duration: 8000 },
+      { progress: 80, text: "Comparando estructuras original vs mutada...", duration: 10000 },
+      { progress: 85, text: "Calculando RMSD entre modelos...", duration: 8000 },
+      { progress: 90, text: "Analizando impacto de la mutación...", duration: 6000 },
+      { progress: 93, text: "Preparando visualización 3D...", duration: 4000 },
+      { progress: 96, text: "Compilando resultados finales...", duration: 3000 },
+      { progress: 98, text: "Generando reporte de comparación...", duration: 2000 },
       { progress: 100, text: "Análisis completado", duration: 1000 }
     ];
 
@@ -280,7 +281,7 @@
         progressBar.setAttribute('aria-valuenow', step.progress);
         progressText.textContent = step.progress + '%';
         currentStep.textContent = step.text;
-        
+
         // Continue to next step after the specified duration
         setTimeout(() => {
           updateProgress(stepIndex + 1);
@@ -289,15 +290,15 @@
     }
 
     // Form submission handler
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', function (e) {
       // Show progress bar and hide form
       progressContainer.style.display = 'block';
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Procesando...';
-      
+
       // Start progress animation
       updateProgress(0);
-      
+
       // Scroll to progress bar
       progressContainer.scrollIntoView({ behavior: 'smooth' });
     });

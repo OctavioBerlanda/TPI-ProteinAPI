@@ -92,17 +92,29 @@ def api_user_comparisons(username):
 
 @main_bp.route('/comparison/<int:comparison_id>/alphafold')
 def alphafold_results(comparison_id):
-    """Página que muestra los resultados detallados de AlphaFold"""
+    """Página que muestra los resultados detallados de predicción de estructura 3D (Swiss-Model)"""
     details = comparison_manager.get_comparison_details(comparison_id)
     
     if not details:
         flash('Comparación no encontrada', 'error')
         return redirect(url_for('main.index'))
     
-    # Verificar que la comparación tiene datos de AlphaFold
+    # Verificar que la comparación tiene predicción de estructura 3D habilitada
     comparison_data = details.get('comparison', {})
-    if not comparison_data.get('original_model_path') and not comparison_data.get('original_prediction_url'):
-        flash('Esta comparación no incluye predicciones de AlphaFold', 'warning')
+    
+    # Para Swiss-Model, siempre deberíamos tener modelos si la predicción fue habilitada
+    # Verificamos si hay algún indicador de que se intentó hacer predicción 3D
+    has_structure_prediction = (
+        comparison_data.get('original_model_path') or 
+        comparison_data.get('mutated_model_path') or 
+        comparison_data.get('original_prediction_url') or 
+        comparison_data.get('mutated_prediction_url') or
+        comparison_data.get('original_confidence_score') is not None or
+        comparison_data.get('mutated_confidence_score') is not None
+    )
+    
+    if not has_structure_prediction:
+        flash('Esta comparación no incluye predicciones de estructura 3D. Ejecute una nueva comparación con la opción "Incluir Predicción de AlphaFold" habilitada.', 'warning')
         return redirect(url_for('main.comparison_result', comparison_id=comparison_id))
     
     return render_template('alphafold_results.html', 

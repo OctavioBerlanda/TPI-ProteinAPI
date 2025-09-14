@@ -212,6 +212,22 @@ class ComparisonManager:
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
 
+        # --- Paso 0: Limpiar modelos antiguos antes de generar nuevos ---
+        try:
+            # Obtener el user_id de la comparación actual
+            from src.data.repositories import ProteinComparisonRepository
+            comparison = ProteinComparisonRepository.get_comparison_by_id(comparison_id)
+            if comparison and comparison.user_id:
+                print("🧹 Limpiando modelos antiguos del usuario...")
+                cleanup_stats = self.alphafold_service.cleanup_old_models(
+                    user_id=comparison.user_id, 
+                    keep_recent=3  # Mantener las 3 comparaciones más recientes
+                )
+                if cleanup_stats['files_deleted'] > 0:
+                    print(f"   ✅ Liberados {cleanup_stats['space_freed_mb']:.1f} MB de espacio")
+        except Exception as e:
+            print(f"   ⚠️ Error en limpieza (continuando): {str(e)}")
+
         # --- Paso 1: Obtener la estructura ORIGINAL (sin cambios) ---
         print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
         original_job_name = f"{comparison_name}_original_ref"
