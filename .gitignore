@@ -1,4 +1,6 @@
 # 🧬 TPI-ProteinAPI - .gitignore
+.env
+*.env/
 
 # Python
 __pycache__/

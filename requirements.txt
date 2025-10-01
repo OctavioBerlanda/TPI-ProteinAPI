@@ -15,5 +15,8 @@ python-dotenv==1.0.0
 # API requests - Para integración con SwissModel
 requests==2.31.0
 
-# Bioinformatics - Para parsear y convertir archivos CIF/PDB
-biopython==1.81
+# Bioinformatics - Para parsear y convertir archivos CIF/PDB (compatible con Python 3.13)
+biopython>=1.84
+
+# Cálculo numérico - requerido para consenso y métricas estructurales
+numpy>=1.26,<3.0

@@ -299,6 +299,41 @@ def serve_swissmodel_models(filename):
     
     return response
 
+@main_bp.route('/reports/swissmodel/<path:filename>')
+def serve_swissmodel_report(filename):
+    """Entrega reportes HTML generados por SwissModel."""
+    import mimetypes
+    import os
+    from pathlib import Path
+    from flask import abort
+
+    project_root = Path(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+    base_dir_config = None
+    if comparison_manager.swissmodel_service:
+        base_dir_config = comparison_manager.swissmodel_service.models_directory
+
+    base_dir_path = Path(base_dir_config) if base_dir_config else project_root / 'models' / 'swissmodel'
+    if not base_dir_path.is_absolute():
+        base_dir_path = (project_root / base_dir_path).resolve()
+    else:
+        base_dir_path = base_dir_path.resolve()
+
+    requested_path = (base_dir_path / filename).resolve()
+
+    try:
+        requested_path.relative_to(base_dir_path)
+    except ValueError:
+        abort(403)
+
+    if not requested_path.exists():
+        abort(404)
+
+    mime_type, _ = mimetypes.guess_type(str(requested_path))
+    response = make_response(send_file(str(requested_path), as_attachment=False, mimetype=mime_type or 'text/html'))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
 @main_bp.route('/api/comparison/<int:comparison_id>/model/<model_type>/view.pdb')
 def get_model_file_as_pdb(comparison_id, model_type):
     """API endpoint para servir archivos de modelos convertidos a PDB para mejor compatibilidad con NGL"""

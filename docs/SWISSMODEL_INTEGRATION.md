@@ -16,33 +16,30 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 
 ### ✅ Algoritmos Avanzados de Modelado de Mutaciones
 
-#### 🔬 Análisis Estructural Complejo
+#### 🤝 Mezcla de Plantillas Consenso
 
-- **RMSD Local:** Cálculo de desviación en regiones específicas alrededor de mutaciones
-- **Análisis de Contactos:** Detección de cambios en interacciones intermoleculares
-- **Superficie Accesible:** Evaluación de cambios en área superficial al solvente
-- **Caracterización de Sitios:** Análisis detallado del entorno de cada mutación
+- **`ConsensusModelBuilder`** integra múltiples modelos homólogos ponderándolos por GMQE/QMEAN
+- **Cálculo automático de cobertura** y SASA por residuo para alimentar análisis posteriores
+- **Métricas de conservación ponderada** por residuo usando la alineación estructural
+- **Alineamiento y superposición** usando Bio.PDB para asegurar geometría consistente
 
-#### 🧬 Cálculos de Estabilidad Proteica
+#### � Puntuación Fisicoquímica de Mutaciones
 
-- **Modelo Energético Simplificado:** Cálculos de cambio de energía libre de plegamiento
-- **Estabilidad Térmica:** Predicción de cambios en temperatura de fusión
-- **Matriz de Sustitución:** Energía de cambio basada en propiedades fisicoquímicas
-- **Factores Posicionales:** Penalizaciones por ubicación estructural de la mutación
+- **`MutationScorer`** combina BLOSUM62, distancia de Grantham y heurísticas de ΔΔG
+- **Contexto ambiental** por residuo (SASA, conservación, estructura secundaria) incorporado en el puntaje
+- **Clasificación automática** del impacto: estabilizante, neutro, levemente desestabilizante o desestabilizante
 
-#### 🎯 Análisis Funcional Inteligente
+#### 📐 Métricas Estructurales Integradas
 
-- **Detección de Sitios Activos:** Identificación de residuos catalíticos afectados
-- **Análisis de Interfaces:** Evaluación de cambios en superficies de unión
-- **Clasificación de Impacto:** Categorización automática (bajo/medio/alto)
-- **Conservación de Motivos:** Detección de alteraciones estructurales
+- **RMSD global y local** mediante superposición de átomos CA y vecindarios backbone
+- **Cálculo de SASA** previo y posterior a mutaciones para medir efectos de exposición
+- **Cobertura y solapamiento** cuantificados para detectar zonas no modeladas
 
-#### 🌊 Predicción Dinámica Molecular
+#### � Calibración Dinámica de Confianza
 
-- **Análisis de Flexibilidad:** Cambios en rigidez de diferentes regiones
-- **Entropía Conformacional:** Estimación de espacio conformacional disponible
-- **Modos Normales Simplificados:** Predicción de movimientos colectivos
-- **Regiones Dinámicas:** Identificación de segmentos afectados
+- Penalización final basada en ΔΔG agregados, RMSD, cobertura y picos locales
+- **Curvas de penalización** ajustadas para priorizar modelos con soporte estructural sólido
+- **Reporte detallado** que acompaña cada resultado con métricas intermedias para auditoría
 
 ### ✅ Sistema de Confianza Mejorado
 
@@ -65,59 +62,70 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 src/business/swissmodel_service.py
 ├── SwissModelService
 │   ├── predict_structure()                    # Coordina predicción 3D básica
-│   ├── predict_mutated_structure_advanced()  # 🔥 PREDICCIÓN AVANZADA
+│   ├── predict_mutated_structure_advanced()  # 🔥 PREDICCIÓN AVANZADA con consenso
 │   ├── _predict_with_swiss_model()           # Implementa flujo Swiss-Model
 │   ├── _download_swiss_model_file()          # Descarga modelos PDB/CIF
 │   ├── compare_structures()                  # Compara estructuras
-│   ├── perform_advanced_structural_analysis() # 🔬 Análisis estructural
-│   ├── calculate_stability_changes()          # 🧬 Cálculos de estabilidad
-│   ├── analyze_functional_impacts()           # 🎯 Análisis funcional
-│   ├── predict_dynamics_changes()             # 🌊 Predicción dinámica
+│   ├── predict_mutated_from_original_models() # Fallback con mutaciones directas
+│   ├── _compute_structural_metrics()          # Métricas RMSD/SASA
+│   ├── _collect_ca_atoms() / _collect_local_atoms() # Utilidades geométricas
+│   ├── _derive_confidence_penalty()           # Ajuste de confianza final
 │   └── cleanup_old_models()                   # Gestión de archivos
 └── ComparisonManager (actualizado)
-    └── _process_swissmodel_predictions()      # Procesa predicciones con algoritmos avanzados
+    └── _process_swissmodel_predictions()      # Orquesta predicciones y evaluaciones
+
+src/business/consensus_model.py
+├── ConsensusModelBuilder
+│   ├── build()                                # Fusiona plantillas y calcula SASA
+│   ├── _collect_alignment_atoms()             # Selecciona átomos guía
+│   └── _compute_sasa()                        # Ejecuta Shrake-Rupley por residuo
+
+src/business/mutation_scoring.py
+├── MutationScorer
+│   ├── score_mutations()                      # Puntajes y agregados por mutación
+│   ├── _estimate_ddg()                        # Heurística ΔΔG con propiedades
+│   └── classify_ddg()                         # Etiquetas de impacto
 ```
 
 ### Algoritmos Avanzados Implementados
 
-#### 🔬 Análisis Estructural
+#### 🤝 Generación de Consenso Estructural
 
 ```
-perform_advanced_structural_analysis()
-├── calculate_local_rmsd()           # RMSD en regiones locales
-├── analyze_mutation_site()          # Caracterización de sitios
-├── analyze_contact_changes()        # Cambios en contactos
-└── analyze_surface_area_changes()   # Área superficial
+ConsensusModelBuilder.build()
+├── _collect_alignment_atoms()     # Selección de átomos para alineamiento
+├── _superimpose_templates()       # Superposición múltiple
+├── _compute_sasa()                # Cálculo Shrake-Rupley por residuo
+└── _export_consensus_structure()  # Escritura PDB final
 ```
 
-#### 🧬 Estabilidad Proteica
+#### � Puntuación Fisicoquímica de Mutaciones
 
 ```
-calculate_stability_changes()
-├── calculate_mutation_energy_change()  # Energía de sustitución
-├── position_factor_adjustment()        # Factores posicionales
-├── charge_change_penalty()             # Penalización carga
-└── thermal_stability_prediction()      # Predicción Tm
+MutationScorer.score_mutations()
+├── _get_blosum_score()            # Consulta BLOSUM62
+├── _get_grantham_distance()       # Distancia fisicoquímica
+├── _estimate_ddg()                # Heurística ΔΔG con SASA y conservación
+└── classify_ddg()                 # Etiquetado del impacto
 ```
 
-#### 🎯 Análisis Funcional
+#### 📐 Métricas Estructurales Automatizadas
 
 ```
-analyze_functional_impacts()
-├── assess_mutation_functional_impact()  # Impacto individual
-├── active_site_detection()              # Sitios activos
-├── binding_interface_analysis()         # Interfaces de unión
-└── motif_conservation_check()           # Conservación de motivos
+SwissModelService._compute_structural_metrics()
+├── _collect_ca_atoms()            # Listas pareadas de CA
+├── _collect_local_atoms()         # Ventanas backbone alrededor de mutaciones
+├── _sum_residue_sasa()            # Integración de SASA por residuo
+└── _derive_confidence_penalty()   # Penalización dinámica de confianza
 ```
 
-#### 🌊 Dinámica Molecular
+### 🗂️ Reportes Interactivos de Mutaciones
 
 ```
-predict_dynamics_changes()
-├── flexibility_analysis()               # Análisis de flexibilidad
-├── stiffness_calculation()              # Cálculo de rigidez
-├── entropy_estimation()                 # Entropía conformacional
-└── normal_mode_approximation()          # Modos normales simplificados
+build_mutation_report()
+├── Genera HTML responsivo con métricas por residuo
+├── Integra conservación, SASA y puntajes fisicoquímicos
+└── Produce resumen de confianza antes/después del ajuste
 ```
 
 ### Flujo Swiss-Model (3 Pasos)
@@ -283,24 +291,11 @@ GET /api/comparison/{id}/model/mutated
 ### Tests Automatizados
 
 ```bash
-# Ejecutar todos los tests incluyendo Swiss-Model
-python tests/run_tests.py
+# Ejecutar chequeo sintáctico rápido del paquete
+python -m compileall src
 
-# Tests específicos de integración
-python -m pytest tests/test_swissmodel_integration.py
-
-# Tests de la nueva lógica Swiss-Model
-python test_swiss_model_new_logic.py
-```
-
-### Demostración
-
-```bash
-# Ejecutar demostración Swiss-Model
-python test_swiss_model.py
-
-# Test completo de la nueva lógica
-python test_swiss_model_new_logic.py
+# Lanzar el escenario de depuración SwissModel incluido en el repo
+python test_swissmodel_debug.py
 ```
 
 ## 🛠️ Instalación y Configuración
