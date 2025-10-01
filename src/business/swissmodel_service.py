@@ -208,9 +208,12 @@ class SwissModelService:
         
         try:
             print(f"🔬 Iniciando predicción de estructura para secuencia de {len(sequence)} residuos...")
+            print(f"   📄 Secuencia: {sequence[:50]}{'...' if len(sequence) > 50 else ''}")
+            print(f"   🎯 Modo: {'MÚLTIPLES MODELOS' if return_all_models else 'MEJOR MODELO'}")
             
             # Validar longitud mínima requerida por SWISS-MODEL
             if len(sequence) < 30:
+                print(f"   ❌ ERROR: Secuencia demasiado corta ({len(sequence)} < 30 residuos)")
                 raise SwissModelIntegrationError(
                     f"La secuencia debe tener al menos 30 residuos para usar SWISS-MODEL. "
                     f"Secuencia actual: {len(sequence)} residuos."
@@ -371,8 +374,13 @@ class SwissModelService:
         
         print(f"   📊 Se generaron {len(models)} modelo(s)")
         
+        # Debug: Mostrar información de cada modelo
+        for i, model in enumerate(models):
+            print(f"   📋 Modelo {i+1}: GMQE={model.get('gmqe', 'N/A')}, QMEAN={model.get('qmean', {}).get('z_score', 'N/A') if isinstance(model.get('qmean'), dict) else 'N/A'}")
+        
         # Determinar cuáles modelos procesar
         models_to_process = models if return_all_models else [models[0]]
+        print(f"   🎯 Procesando {len(models_to_process)} modelo(s) ({'TODOS' if return_all_models else 'SOLO MEJOR'})")
         
         results = []
         best_result = None
@@ -448,13 +456,19 @@ class SwissModelService:
         if not results:
             raise SwissModelIntegrationError("No se pudo descargar ningún modelo válido")
         
-        processing_time = time.time() - start_time
-        
         print(f"✅ Predicción completada en {processing_time:.1f}s")
         if best_result and best_result.get("protein_name"):
             print(f"   🧬 Proteína identificada: {best_result['protein_name']}")
         if best_result and best_result.get("model_id"):
             print(f"   🆔 Mejor modelo ID: {best_result['model_id']}")
+        
+        # Debug: Mostrar resumen final
+        if return_all_models:
+            print(f"   📊 RESULTADO FINAL: {len(results)} modelos procesados, mejor GMQE: {best_gmqe:.3f}")
+            for i, res in enumerate(results):
+                print(f"      Modelo {i+1}: GMQE={res.get('gmqe_score', 'N/A'):.3f}, Confianza={res.get('confidence', 'N/A')}%")
+        else:
+            print(f"   📊 RESULTADO FINAL: 1 modelo, GMQE={best_result.get('gmqe_score', 'N/A'):.3f}, Confianza={best_result.get('confidence', 'N/A')}%")
         
         # Devolver resultado según el modo
         if return_all_models:
@@ -819,6 +833,10 @@ class SwissModelService:
             mutated_pdb_path = os.path.join(self.models_directory, f"{job_name}_mutated_advanced.pdb")
         
         print(f"🔬 Iniciando predicción avanzada de mutada con {len(mutations)} mutación(es)...")
+        print(f"   📊 Modelos disponibles: {len(models)}")
+        for i, model in enumerate(models[:3]):  # Mostrar info de los primeros 3 modelos
+            print(f"      Modelo {i+1}: GMQE={model.get('gmqe_score', 'N/A'):.3f}, Confianza={model.get('confidence', 'N/A')}%")
+        print(f"   🎯 Mutaciones: {mutations}")
         
         # Paso 1: Aplicar mutaciones con combinación inteligente
         mutated_pdb_path = self.apply_mutations_with_model_combination(models, mutations, mutated_pdb_path)

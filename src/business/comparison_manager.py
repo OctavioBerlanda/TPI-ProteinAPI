@@ -230,24 +230,33 @@ class ComparisonManager:
 
         # --- Paso 1: Obtener la estructura ORIGINAL con múltiples modelos ---
         print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
+        print(f"   📄 Secuencia original ({len(original_sequence)} aa): {original_sequence[:30]}{'...' if len(original_sequence) > 30 else ''}")
         original_job_name = f"{comparison_name}_original_ref"
         original_result = self.swissmodel_service.predict_structure(
             original_sequence, original_job_name, return_all_models=True
         )
+        
+        print(f"   📊 Resultado original: {len(original_result.get('models', []))} modelos disponibles")
+        if 'best_model' in original_result:
+            best = original_result['best_model']
+            print(f"   🏆 Mejor modelo: GMQE={best.get('gmqe_score', 'N/A'):.3f}, Confianza={best.get('confidence', 'N/A')}%")
 
         # --- Paso 2: Generar la estructura MUTADA aplicando mutaciones a los modelos originales ---
         print("\n➡️  Paso 2: Generando estructura mutada desde modelos originales...")
+        print(f"   📄 Secuencia mutada ({len(mutated_sequence)} aa): {mutated_sequence[:30]}{'...' if len(mutated_sequence) > 30 else ''}")
         mutated_job_name = f"{comparison_name}_mutated_pred"
         
         # Obtener las mutaciones
         validation_result = self.sequence_service.validate_and_compare_sequences(original_sequence, mutated_sequence)
         mutations = [(m['position'], m['original_amino_acid'], m['mutated_amino_acid']) for m in validation_result['mutations']['mutations']]
+        print(f"   🔄 Mutaciones detectadas: {mutations}")
         
         try:
             print(f"🔬 Aplicando {len(mutations)} mutación(es) usando algoritmos avanzados...")
             mutated_result = self.swissmodel_service.predict_mutated_structure_advanced(
                 original_result, mutations, mutated_job_name
             )
+            print(f"   ✅ Modelo mutado generado exitosamente")
         except SwissModelIntegrationError as e:
             print(f"⚠️ Falló la predicción mutada desde modelos: {e}. Usando SWISS-MODEL directo como fallback.")
             # Fallback: predecir directamente con SWISS-MODEL
@@ -260,6 +269,27 @@ class ComparisonManager:
         structural_comparison = self.swissmodel_service.compare_structures(
             original_result, mutated_result
         )
+        
+        # Debug: Verificar que los modelos sean diferentes
+        orig_model = original_result.get('best_model', original_result)
+        mut_model = mutated_result
+        
+        print(f"   📊 COMPARACIÓN FINAL:")
+        print(f"      Original: {orig_model.get('model_path', 'N/A')}")
+        print(f"      Mutada: {mut_model.get('model_path', 'N/A')}")
+        print(f"      RMSD: {structural_comparison.get('rmsd_value', 'N/A')}")
+        print(f"      Diferencia confianza: {structural_comparison.get('confidence_difference', 'N/A')}")
+        
+        # Verificar si los archivos son realmente diferentes
+        if orig_model.get('model_path') and mut_model.get('model_path'):
+            try:
+                import os
+                orig_size = os.path.getsize(orig_model['model_path']) if os.path.exists(orig_model['model_path']) else 0
+                mut_size = os.path.getsize(mut_model['model_path']) if os.path.exists(mut_model['model_path']) else 0
+                print(f"      Tamaño archivos: Original={orig_size} bytes, Mutada={mut_size} bytes")
+                print(f"      Archivos diferentes: {'SÍ' if orig_size != mut_size else 'NO'}")
+            except Exception as e:
+                print(f"      Error verificando archivos: {e}")
 
         return {
             'original': original_result.get('best_model', original_result),
