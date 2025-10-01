@@ -545,12 +545,28 @@
           });
           console.log('✅ Modelo original (simulado) renderizado con ball+stick');
         } else {
-          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
-          component.addRepresentation("cartoon", {
-            color: "chainid",
-            radius: 0.5
-          });
-          console.log('✅ Modelo original (real) renderizado con cartoon');
+          // Es un modelo completo, intentamos cartoon primero
+          try {
+            component.addRepresentation("cartoon", {
+              color: "chainid",
+              radius: 0.5
+            });
+            console.log('✅ Modelo original renderizado con cartoon');
+          } catch (cartoonError) {
+            // Si cartoon falla, usar backbone + ball+stick como fallback
+            console.warn('⚠️ Cartoon falló, usando representación alternativa:', cartoonError);
+            component.addRepresentation("backbone", {
+              color: "chainid",
+              radius: 0.3
+            });
+            component.addRepresentation("ball+stick", {
+              sele: "backbone or .CA",
+              aspectRatio: 2.0,
+              radius: 0.2,
+              color: "chainid"
+            });
+            console.log('✅ Modelo original renderizado con backbone+ball+stick');
+          }
         }
         component.autoView();
       }).catch(function (error) {
@@ -579,12 +595,28 @@
           });
           console.log('✅ Modelo mutado (simulado) renderizado con ball+stick');
         } else {
-          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
-          component.addRepresentation("cartoon", {
-            color: "chainid",
-            radius: 0.5
-          });
-          console.log('✅ Modelo mutado (real) renderizado con cartoon');
+          // Es un modelo completo, intentamos cartoon primero
+          try {
+            component.addRepresentation("cartoon", {
+              color: "chainid",
+              radius: 0.5
+            });
+            console.log('✅ Modelo mutado renderizado con cartoon');
+          } catch (cartoonError) {
+            // Si cartoon falla, usar backbone + ball+stick como fallback
+            console.warn('⚠️ Cartoon falló, usando representación alternativa:', cartoonError);
+            component.addRepresentation("backbone", {
+              color: "chainid",
+              radius: 0.3
+            });
+            component.addRepresentation("ball+stick", {
+              sele: "backbone or .CA",
+              aspectRatio: 2.0,
+              radius: 0.2,
+              color: "chainid"
+            });
+            console.log('✅ Modelo mutado renderizado con backbone+ball+stick');
+          }
         }
         component.autoView();
       }).catch(function (error) {
@@ -601,10 +633,19 @@
       // NGL inferirá el formato desde la URL y los headers
       stage.loadFile(originalModelUrl).then(function (component) {
         currentComponents.push(component);
-        component.addRepresentation("cartoon", {
-          color: "#2E86C1",  // Azul
-          opacity: 0.7
-        });
+        try {
+          component.addRepresentation("cartoon", {
+            color: "#2E86C1",  // Azul
+            opacity: 0.7
+          });
+        } catch (error) {
+          // Fallback para modelo original
+          component.addRepresentation("backbone", {
+            color: "#2E86C1",
+            opacity: 0.8,
+            radius: 0.3
+          });
+        }
         component.addRepresentation("ball+stick", {
           sele: "hetero",
           color: "element"
@@ -614,10 +655,19 @@
         return stage.loadFile(mutatedModelUrl);
       }).then(function (component) {
         currentComponents.push(component);
-        component.addRepresentation("cartoon", {
-          color: "#E74C3C",  // Rojo
-          opacity: 0.7
-        });
+        try {
+          component.addRepresentation("cartoon", {
+            color: "#E74C3C",  // Rojo
+            opacity: 0.7
+          });
+        } catch (error) {
+          // Fallback para modelo mutado
+          component.addRepresentation("backbone", {
+            color: "#E74C3C",
+            opacity: 0.8,
+            radius: 0.3
+          });
+        }
         component.addRepresentation("ball+stick", {
           sele: "hetero",
           color: "element"

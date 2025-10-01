@@ -26,7 +26,7 @@ class Config:
     
     # Configuración de SwissModel
     MODELS_DIRECTORY = os.environ.get('MODELS_DIRECTORY') or 'models/swissmodel'
-    API_TIMEOUT = int(os.environ.get('API_TIMEOUT', '300'))  # 5 minutos por defecto
+    API_TIMEOUT = int(os.environ.get('API_TIMEOUT', '900'))  # 15 minutos por defecto
     MAX_SEQUENCE_LENGTH = int(os.environ.get('MAX_SEQUENCE_LENGTH', '2000'))
     ENABLE_SWISSMODEL = os.environ.get('ENABLE_SWISSMODEL', 'true').lower() == 'true'
 

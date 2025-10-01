@@ -320,11 +320,11 @@ class SwissModelService:
         # Aumentar tiempo de espera para secuencias largas
         sequence_length = len(sequence)
         if sequence_length > 200:
-            max_attempts = 60  # 60 intentos x 10 segundos = 10 minutos para secuencias largas
-            print(f"   ⏱️ Secuencia larga detectada ({sequence_length} residuos). Tiempo máximo: 10 minutos")
+            max_attempts = 120  # 120 intentos x 10 segundos = 20 minutos para secuencias largas
+            print(f"   ⏱️ Secuencia larga detectada ({sequence_length} residuos). Tiempo máximo: 20 minutos")
         else:
-            max_attempts = 30  # 30 intentos x 10 segundos = 5 minutos para secuencias normales
-            print(f"   ⏱️ Tiempo máximo de espera: 5 minutos")
+            max_attempts = 90  # 90 intentos x 10 segundos = 15 minutos para secuencias normales
+            print(f"   ⏱️ Tiempo máximo de espera: 15 minutos")
         
         attempt = 0
         
@@ -456,6 +456,7 @@ class SwissModelService:
         if not results:
             raise SwissModelIntegrationError("No se pudo descargar ningún modelo válido")
         
+        processing_time = time.time() - start_time
         print(f"✅ Predicción completada en {processing_time:.1f}s")
         if best_result and best_result.get("protein_name"):
             print(f"   🧬 Proteína identificada: {best_result['protein_name']}")
@@ -663,8 +664,11 @@ class SwissModelService:
         Returns:
             Ruta del archivo PDB combinado
         """
+        import time
         from Bio.PDB import PDBParser, PDBIO, Superimposer
         from Bio.PDB.Polypeptide import three_to_one, one_to_three
+        
+        start_time = time.time()
         
         if not sorted_models:
             raise SwissModelIntegrationError("No hay modelos para combinar")
@@ -694,9 +698,16 @@ class SwissModelService:
                 print(f"   🔄 Modelos superpuestos (RMSD: {superimposer.rms:.2f} Å)")
                 
                 # Para posiciones mutadas, copiar residuos del modelo alternativo
+                print(f"   🔄 Iniciando copia de coordenadas para {len(mutation_positions)} posiciones mutadas...")
+                copied_positions = 0
                 for model in base_structure:
                     for chain in model:
                         for residue in chain:
+                            # Check timeout (max 30 seconds for this step)
+                            if time.time() - start_time > 30:
+                                print(f"   ⚠️ Timeout en copia de coordenadas, continuando...")
+                                break
+                                
                             res_id = residue.get_id()
                             pos = res_id[1]
                             
@@ -709,10 +720,14 @@ class SwissModelService:
                                             if alt_res_id[1] == pos:
                                                 # Copiar coordenadas del residuo alternativo
                                                 for atom in residue:
-                                                    alt_atom = alt_residue.get(atom.get_name())
-                                                    if alt_atom:
+                                                    try:
+                                                        alt_atom = alt_residue[atom.get_name()]
                                                         atom.set_coord(alt_atom.get_coord())
-                                                print(f"   🔄 Copiadas coordenadas de residuo {pos} del modelo alternativo")
+                                                    except KeyError:
+                                                        # El átomo no existe en el residuo alternativo, continuar
+                                                        continue
+                                                copied_positions += 1
+                                                print(f"   🔄 Copiadas coordenadas de residuo {pos} del modelo alternativo ({copied_positions}/{len(mutation_positions)})")
                                                 break
                                         else:
                                             continue
@@ -721,6 +736,7 @@ class SwissModelService:
                                         continue
                                     break
         
+        print(f"   🔄 Aplicando cambios de aminoácidos para {len(mutations)} mutaciones...")
         # Aplicar cambios de aminoácidos
         aa_dict = {
             'A': 'ALA', 'R': 'ARG', 'N': 'ASN', 'D': 'ASP', 'C': 'CYS',
@@ -729,9 +745,15 @@ class SwissModelService:
             'S': 'SER', 'T': 'THR', 'W': 'TRP', 'Y': 'TYR', 'V': 'VAL'
         }
         
+        mutations_applied = 0
         for model in base_structure:
             for chain in model:
                 for residue in chain:
+                    # Check timeout (max 60 seconds total for mutation application)
+                    if time.time() - start_time > 60:
+                        print(f"   ⚠️ Timeout en aplicación de mutaciones, continuando...")
+                        break
+                        
                     res_id = residue.get_id()
                     pos = res_id[1]
                     
@@ -741,8 +763,16 @@ class SwissModelService:
                             if current_aa == orig_aa:
                                 new_resname = aa_dict.get(mut_aa.upper())
                                 if new_resname:
+                                    # Cambiar el resname manteniendo conectividad
+                                    old_resname = residue.resname
                                     residue.resname = new_resname
-                                    print(f"   🔄 Mutación aplicada: {orig_aa}{pos} -> {mut_aa} (con coordenadas combinadas)")
+                                    
+                                    # Para mutaciones críticas, mantener solo átomos backbone
+                                    if self._is_critical_mutation(orig_aa, mut_aa):
+                                        self._preserve_backbone_atoms_only(residue, mut_aa)
+                                    
+                                    mutations_applied += 1
+                                    print(f"   🔄 Mutación aplicada: {orig_aa}{pos} -> {mut_aa} ({old_resname} -> {new_resname}) [{mutations_applied}/{len(mutations)}]")
                                 else:
                                     print(f"   ⚠️ Aminoácido mutado desconocido: {mut_aa}")
                             else:
@@ -750,12 +780,73 @@ class SwissModelService:
                             break
         
         # Guardar el PDB combinado
+        print(f"   💾 Guardando estructura combinada...")
         io = PDBIO()
         io.set_structure(base_structure)
         io.save(output_path)
         
-        print(f"   💾 PDB combinado guardado en: {output_path}")
+        # Validar y limpiar el archivo PDB generado
+        self._validate_and_clean_pdb(output_path)
+        
+        print(f"   💾 PDB combinado guardado y validado en: {output_path}")
         return output_path
+
+    def _is_critical_mutation(self, orig_aa: str, mut_aa: str) -> bool:
+        """
+        Determina si una mutación es crítica (cambio drástico de propiedades)
+        que podría requerir preservar solo el backbone
+        """
+        # Cambios de tamaño dramáticos o carga
+        critical_pairs = [
+            ('W', 'G'), ('F', 'G'), ('Y', 'G'),  # Grande a pequeño
+            ('K', 'D'), ('R', 'E'), ('D', 'K'),  # Cambio de carga
+            ('P', 'G'), ('G', 'P'),  # Proline changes
+            ('C', 'A'), ('M', 'A')   # Loss of special properties
+        ]
+        return (orig_aa, mut_aa) in critical_pairs or (mut_aa, orig_aa) in critical_pairs
+
+    def _preserve_backbone_atoms_only(self, residue, mut_aa: str):
+        """
+        Para mutaciones críticas, mantiene solo átomos del backbone
+        para prevenir distorsiones estructurales
+        """
+        backbone_atoms = ['N', 'CA', 'C', 'O']
+        atoms_to_remove = []
+        
+        for atom in residue:
+            if atom.get_name() not in backbone_atoms:
+                atoms_to_remove.append(atom.get_id())
+        
+        # Remover átomos de cadena lateral para evitar conflictos
+        for atom_id in atoms_to_remove:
+            residue.detach_child(atom_id)
+        
+        print(f"       🔧 Cadena lateral removida para mutación crítica -> {mut_aa}")
+
+    def _validate_and_clean_pdb(self, pdb_path: str):
+        """
+        Valida y limpia el archivo PDB para asegurar conectividad proper
+        """
+        try:
+            # Leer y reescribir el PDB para limpiar posibles inconsistencias
+            with open(pdb_path, 'r') as f:
+                lines = f.readlines()
+            
+            # Filtrar líneas válidas y mantener conectividad
+            cleaned_lines = []
+            for line in lines:
+                # Mantener HEADER, ATOM, TER, END records esenciales
+                if line.startswith(('HEADER', 'ATOM  ', 'HETATM', 'TER   ', 'END   ', 'CONECT')):
+                    cleaned_lines.append(line)
+            
+            # Reescribir archivo limpio
+            with open(pdb_path, 'w') as f:
+                f.writelines(cleaned_lines)
+            
+            print(f"   ✅ Archivo PDB validado y limpiado: {len(cleaned_lines)} líneas")
+            
+        except Exception as e:
+            print(f"   ⚠️ Warning: No se pudo limpiar el PDB: {e}")
 
     def predict_mutated_from_original_models(self, original_result: Dict[str, Any], mutations: List[Tuple[int, str, str]], job_name: str) -> Dict[str, Any]:
         """
