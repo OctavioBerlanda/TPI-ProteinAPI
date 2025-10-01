@@ -14,19 +14,19 @@ def index():
     form = SequenceComparisonForm()
     
     if form.validate_on_submit():
-        # Verificar si se debe usar AlphaFold
-        enable_alphafold = form.alpha_fold.data
+        # Verificar si se debe usar SwissModel
+        enable_swissmodel = form.swiss_model.data
         
-        if enable_alphafold:
-            # Usar el método con AlphaFold
-            result = comparison_manager.create_comparison_with_alphafold(
+        if enable_swissmodel:
+            # Usar el método con SwissModel
+            result = comparison_manager.create_comparison_with_swissmodel(
                 username=form.username.data,
                 email=form.email.data,
                 original_sequence=form.original_sequence.data,
                 mutated_sequence=form.mutated_sequence.data,
                 comparison_name=form.comparison_name.data,
                 description=form.description.data,
-                enable_alphafold=True
+                enable_swissmodel=True
             )
         else:
             # Usar el método tradicional
@@ -90,8 +90,8 @@ def api_user_comparisons(username):
     comparisons_data = comparison_manager.get_user_comparisons(username)
     return jsonify(comparisons_data)
 
-@main_bp.route('/comparison/<int:comparison_id>/alphafold')
-def alphafold_results(comparison_id):
+@main_bp.route('/comparison/<int:comparison_id>/swissmodel')
+def swissmodel_results(comparison_id):
     """Página que muestra los resultados detallados de predicción de estructura 3D (Swiss-Model)"""
     details = comparison_manager.get_comparison_details(comparison_id)
     
@@ -114,10 +114,10 @@ def alphafold_results(comparison_id):
     )
     
     if not has_structure_prediction:
-        flash('Esta comparación no incluye predicciones de estructura 3D. Ejecute una nueva comparación con la opción "Incluir Predicción de AlphaFold" habilitada.', 'warning')
+        flash('Esta comparación no incluye predicciones de estructura 3D. Ejecute una nueva comparación con la opción "Incluir Predicción de SwissModel" habilitada.', 'warning')
         return redirect(url_for('main.comparison_result', comparison_id=comparison_id))
     
-    return render_template('alphafold_results.html', 
+    return render_template('swissmodel_results.html', 
                          comparison=details,
                          comparison_id=comparison_id)
 
@@ -277,20 +277,20 @@ def serve_simple_test_pdb():
     
     return response
 
-@main_bp.route('/models/alphafold/<path:filename>')
-def serve_alphafold_models(filename):
-    """Endpoint para servir archivos de modelos AlphaFold directamente"""
+@main_bp.route('/models/swissmodel/<path:filename>')
+def serve_swissmodel_models(filename):
+    """Endpoint para servir archivos de modelos SwissModel directamente"""
     import os
     from flask import send_file, abort
     
     # Construir ruta al archivo
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    file_path = os.path.join(project_root, 'models', 'alphafold', filename)
+    file_path = os.path.join(project_root, 'models', 'swissmodel', filename)
     
     if not os.path.exists(file_path):
         abort(404)
     
-    print(f"✅ Sirviendo archivo AlphaFold: {file_path}", flush=True)
+    print(f"✅ Sirviendo archivo SwissModel: {file_path}", flush=True)
     
     response = make_response(send_file(file_path, as_attachment=False, mimetype='chemical/x-cif'))
     response.headers['Access-Control-Allow-Origin'] = '*'

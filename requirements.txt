@@ -12,7 +12,7 @@ Flask-SQLAlchemy==3.0.5
 # Configuration - Esencial para variables de entorno
 python-dotenv==1.0.0
 
-# API requests - Solo para futuras extensiones con AlphaFold
+# API requests - Para integración con SwissModel
 requests==2.31.0
 
 # Bioinformatics - Para parsear y convertir archivos CIF/PDB

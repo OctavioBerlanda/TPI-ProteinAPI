@@ -284,7 +284,7 @@ footer {
   color: #e2e8f0;
 }
 
-/* AlphaFold Integration Styles */
+/* SwissModel Integration Styles */
 .fade-in {
   animation: fadeIn 0.3s ease-in;
 }
@@ -301,7 +301,7 @@ footer {
   }
 }
 
-.alphafold-badge {
+.swissmodel-badge {
   background: linear-gradient(45deg, #007bff, #0056b3);
   color: white;
   padding: 0.25rem 0.75rem;

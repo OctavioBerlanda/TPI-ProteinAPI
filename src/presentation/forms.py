@@ -1,3 +1,4 @@
+from flask import request
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, EmailField, SubmitField, BooleanField
 from wtforms.validators import DataRequired, Email, Length, Optional
@@ -34,9 +35,34 @@ class SequenceComparisonForm(FlaskForm):
                                              Length(min=1, max=10000, message="La secuencia debe tener entre 1 y 10000 caracteres")],
                                    render_kw={'rows': 6, 'placeholder': 'Ingrese la secuencia de aminoácidos mutada (máximo 2 diferencias)'})
     
-    alpha_fold = BooleanField('Incluir Predicción de AlphaFold')
+    swiss_model = BooleanField('Incluir Predicción de SwissModel')
     
     submit = SubmitField('Comparar Secuencias')
+    
+    def validate(self, extra_validators=None):
+        """Validación personalizada que incluye checks para SwissModel"""
+        # Ejecutar validación estándar primero
+        if not super().validate(extra_validators):
+            return False
+        
+        # Validación adicional para SwissModel
+        if self.swiss_model.data:
+            # Verificar longitud mínima para SwissModel (30 residuos)
+            if len(self.original_sequence.data) < 30:
+                self.original_sequence.errors.append(
+                    "Para usar SwissModel, la secuencia original debe tener al menos 30 residuos. "
+                    f"Secuencia actual: {len(self.original_sequence.data)} residuos."
+                )
+                return False
+            
+            if len(self.mutated_sequence.data) < 30:
+                self.mutated_sequence.errors.append(
+                    "Para usar SwissModel, la secuencia mutada debe tener al menos 30 residuos. "
+                    f"Secuencia actual: {len(self.mutated_sequence.data)} residuos."
+                )
+                return False
+        
+        return True
 
 class UserSearchForm(FlaskForm):
     """Formulario para buscar comparaciones de un usuario"""

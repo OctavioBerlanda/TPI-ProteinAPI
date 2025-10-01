@@ -1,12 +1,12 @@
-# 🧬 Integración Swiss-Model y AlphaFold - Guía Técnica
+# 🧬 Integración Swiss-Model - Guía Técnica Avanzada
 
 ## 📋 Descripción General
 
-El sistema **Comparador de Proteínas** incluye integración completa con **Swiss-Model** para predicción de estructuras 3D y **AlphaFold Database** para información de proteínas conocidas.
+El sistema **Comparador de Proteínas** incluye integración completa con **Swiss-Model** para predicción avanzada de estructuras 3D, implementando algoritmos sofisticados de modelado molecular para el análisis de mutaciones.
 
 ## 🎯 Funcionalidades Implementadas
 
-### ✅ Predicción de Estructuras 3D con Swiss-Model
+### ✅ Predicción Avanzada de Estructuras con Swiss-Model
 
 - **Predicción automática** usando Swiss-Model API para secuencias original y mutada
 - **Flujo asíncrono de 3 pasos**: Envío → Polling → Descarga
@@ -14,40 +14,110 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 - **Archivos PDB/CIF descargables** para visualización externa
 - **Métricas de calidad** (GMQE y QMEAN scores) integradas
 
-### ✅ Consulta de Datos AlphaFold
+### ✅ Algoritmos Avanzados de Modelado de Mutaciones
 
-- **Información de proteínas** conocidas desde AlphaFold Database
+#### 🔬 Análisis Estructural Complejo
+
+- **RMSD Local:** Cálculo de desviación en regiones específicas alrededor de mutaciones
+- **Análisis de Contactos:** Detección de cambios en interacciones intermoleculares
+- **Superficie Accesible:** Evaluación de cambios en área superficial al solvente
+- **Caracterización de Sitios:** Análisis detallado del entorno de cada mutación
+
+#### 🧬 Cálculos de Estabilidad Proteica
+
+- **Modelo Energético Simplificado:** Cálculos de cambio de energía libre de plegamiento
+- **Estabilidad Térmica:** Predicción de cambios en temperatura de fusión
+- **Matriz de Sustitución:** Energía de cambio basada en propiedades fisicoquímicas
+- **Factores Posicionales:** Penalizaciones por ubicación estructural de la mutación
+
+#### 🎯 Análisis Funcional Inteligente
+
+- **Detección de Sitios Activos:** Identificación de residuos catalíticos afectados
+- **Análisis de Interfaces:** Evaluación de cambios en superficies de unión
+- **Clasificación de Impacto:** Categorización automática (bajo/medio/alto)
+- **Conservación de Motivos:** Detección de alteraciones estructurales
+
+#### 🌊 Predicción Dinámica Molecular
+
+- **Análisis de Flexibilidad:** Cambios en rigidez de diferentes regiones
+- **Entropía Conformacional:** Estimación de espacio conformacional disponible
+- **Modos Normales Simplificados:** Predicción de movimientos colectivos
+- **Regiones Dinámicas:** Identificación de segmentos afectados
+
+### ✅ Sistema de Confianza Mejorado
+
+- **Penalización Multi-paramétrica:** Ajuste basado en estabilidad, funcionalidad y dinámica
+- **Puntuaciones Derivadas:** Métricas específicas para cada tipo de análisis
+- **Validación Cruzada:** Combinación de algoritmos para mayor robustez
+- **Feedback de Calidad:** Indicadores visuales del nivel de confianza
+
+### ✅ Consulta de Datos Proteicos
+
+- **Información de proteínas** conocidas desde bases de datos públicas
 - **UniProt ID, nombre y organismo** automáticamente identificados
 - **Complemento informativo** sin predicción estructural adicional
-
-### ✅ Análisis Estructural Comparativo
-
-- **Cálculo de RMSD** entre estructuras original y mutada
-- **Análisis de impacto** de mutaciones en la estabilidad
-- **Evaluación de cambios** de confianza entre estructuras
-- **Clasificación del efecto** (beneficioso, neutral, perjudicial)
-
-### ✅ Interfaz Web Integrada
-
-- **Checkbox opcional** para habilitar predicción 3D en el formulario
-- **Página especializada** para mostrar resultados estructurales
-- **API endpoints** para acceso programático a los datos
-- **Descarga directa** de modelos 3D en formato PDB/CIF
 
 ## 🏗️ Arquitectura del Sistema
 
 ### Capa de Negocio
 
 ```
-src/business/alphafold_service.py
-├── AlphaFoldService
-│   ├── predict_structure()           # Coordina predicción 3D
-│   ├── _predict_with_swiss_model()   # Implementa flujo Swiss-Model
-│   ├── _download_swiss_model_file()  # Descarga modelos PDB/CIF
-│   ├── compare_structures()          # Compara estructuras
-│   └── cleanup_old_models()          # Gestión de archivos
+src/business/swissmodel_service.py
+├── SwissModelService
+│   ├── predict_structure()                    # Coordina predicción 3D básica
+│   ├── predict_mutated_structure_advanced()  # 🔥 PREDICCIÓN AVANZADA
+│   ├── _predict_with_swiss_model()           # Implementa flujo Swiss-Model
+│   ├── _download_swiss_model_file()          # Descarga modelos PDB/CIF
+│   ├── compare_structures()                  # Compara estructuras
+│   ├── perform_advanced_structural_analysis() # 🔬 Análisis estructural
+│   ├── calculate_stability_changes()          # 🧬 Cálculos de estabilidad
+│   ├── analyze_functional_impacts()           # 🎯 Análisis funcional
+│   ├── predict_dynamics_changes()             # 🌊 Predicción dinámica
+│   └── cleanup_old_models()                   # Gestión de archivos
 └── ComparisonManager (actualizado)
-    └── create_comparison_with_alphafold()
+    └── _process_swissmodel_predictions()      # Procesa predicciones con algoritmos avanzados
+```
+
+### Algoritmos Avanzados Implementados
+
+#### 🔬 Análisis Estructural
+
+```
+perform_advanced_structural_analysis()
+├── calculate_local_rmsd()           # RMSD en regiones locales
+├── analyze_mutation_site()          # Caracterización de sitios
+├── analyze_contact_changes()        # Cambios en contactos
+└── analyze_surface_area_changes()   # Área superficial
+```
+
+#### 🧬 Estabilidad Proteica
+
+```
+calculate_stability_changes()
+├── calculate_mutation_energy_change()  # Energía de sustitución
+├── position_factor_adjustment()        # Factores posicionales
+├── charge_change_penalty()             # Penalización carga
+└── thermal_stability_prediction()      # Predicción Tm
+```
+
+#### 🎯 Análisis Funcional
+
+```
+analyze_functional_impacts()
+├── assess_mutation_functional_impact()  # Impacto individual
+├── active_site_detection()              # Sitios activos
+├── binding_interface_analysis()         # Interfaces de unión
+└── motif_conservation_check()           # Conservación de motivos
+```
+
+#### 🌊 Dinámica Molecular
+
+```
+predict_dynamics_changes()
+├── flexibility_analysis()               # Análisis de flexibilidad
+├── stiffness_calculation()              # Cálculo de rigidez
+├── entropy_estimation()                 # Entropía conformacional
+└── normal_mode_approximation()          # Modos normales simplificados
 ```
 
 ### Flujo Swiss-Model (3 Pasos)
@@ -88,10 +158,10 @@ src/data/models.py (actualizado)
 
 ```
 src/presentation/
-├── routes.py (rutas AlphaFold)
-├── forms.py (checkbox alpha_fold)
+├── routes.py (rutas SwissModel)
+├── forms.py (checkbox swiss_model)
 └── templates/
-    └── alphafold_results.html
+    └── swissmodel_results.html
 ```
 
 ## 🚀 Uso del Sistema
@@ -100,10 +170,10 @@ src/presentation/
 
 ```env
 # .env
-ENABLE_ALPHAFOLD=true
-ALPHAFOLD_API_ENDPOINT=https://alphafolddb.org/api
+ENABLE_SWISSMODEL=true
+SWISSMODEL_API_ENDPOINT=https://swissmodel.expasy.org/
 COLABFOLD_ENDPOINT=http://localhost:8080
-MODELS_DIRECTORY=models/alphafold
+MODELS_DIRECTORY=models/swissmodel
 API_TIMEOUT=300
 ```
 
@@ -111,7 +181,7 @@ API_TIMEOUT=300
 
 1. Accede a `http://localhost:5000`
 2. Completa el formulario de comparación
-3. **Marca el checkbox "Incluir Predicción de AlphaFold"**
+3. **Marca el checkbox "Incluir Predicción de SwissModel"**
 4. Envía las secuencias
 5. **Espera 5-10 minutos** según longitud de secuencia
 6. Ve los resultados en la página de resultados
@@ -125,12 +195,12 @@ from src.business.comparison_manager import ComparisonManager
 from config.config import get_config
 
 manager = ComparisonManager(get_config())
-result = manager.create_comparison_with_alphafold(
+result = manager.create_comparison_with_swissmodel(
     username="usuario",
     email="email@ejemplo.com",
     original_sequence="MKLLSLVCLASFA",
     mutated_sequence="MKLMSLVCLASFA",
-    enable_alphafold=True  # Activa Swiss-Model + AlphaFold Data
+    enable_swissmodel=True  # Activa Swiss-Model
 )
 ```
 
@@ -151,12 +221,12 @@ GET /api/comparison/{id}/model/mutated
 - **Confianza final**: Principalmente calculada desde GMQE (× 100%)
 - **Clasificación**: Alta (>70%), Media (40-70%), Baja (<40%)
 
-### Información AlphaFold Database
+### Información SwissModel
 
-- **UniProt ID**: Identificador único de la proteína
-- **Nombre proteína**: Descripción funcional
-- **Organismo**: Especie de origen
-- **Versión AlphaFold**: Versión de la base de datos
+- **Template usado**: Estructura homóloga utilizada como base
+- **Secuencia identidad**: Porcentaje de identidad con el template
+- **Cobertura**: Porcentaje de la secuencia cubierta por el modelo
+- **GMQE**: Global Model Quality Estimation (0-1)
 
 ### Análisis Comparativo
 
@@ -217,7 +287,7 @@ GET /api/comparison/{id}/model/mutated
 python tests/run_tests.py
 
 # Tests específicos de integración
-python -m pytest tests/test_alphafold_integration.py
+python -m pytest tests/test_swissmodel_integration.py
 
 # Tests de la nueva lógica Swiss-Model
 python test_swiss_model_new_logic.py
@@ -244,12 +314,12 @@ pip install -r requirements.txt
 ### Configuración de Directorio
 
 ```bash
-mkdir -p models/alphafold
+mkdir -p models/swissmodel
 ```
 
 ### Variables de Entorno
 
-Copiar y ajustar el archivo `.env` con las configuraciones de AlphaFold.
+Copiar y ajustar el archivo `.env` con las configuraciones de SwissModel.
 
 ## 📈 Métricas y Monitoreo
 
@@ -271,7 +341,7 @@ Copiar y ajustar el archivo `.env` con las configuraciones de AlphaFold.
 ### Configuración de Timeouts
 
 ```python
-# Lógica implementada en AlphaFoldService
+# Lógica implementada en SwissModelService
 if sequence_length > 200:
     max_attempts = 60  # 10 minutos
     print(f"Secuencia larga ({sequence_length} residuos). Timeout: 10 min")
@@ -311,9 +381,9 @@ else:
 ```env
 # .env
 SWISS_MODEL_TOKEN=your_swiss_model_api_token
-MODELS_DIRECTORY=models/alphafold
+MODELS_DIRECTORY=models/swissmodel
 API_TIMEOUT=600  # 10 minutos máximo
-ALPHAFOLD_API_ENDPOINT=https://alphafolddb.org/api
+SWISSMODEL_API_ENDPOINT=https://swissmodel.expasy.org/
 ```
 
 ### Logs de Debug
@@ -322,7 +392,7 @@ Los logs detallados se encuentran en la consola durante la ejecución.
 
 ### Contacto
 
-Para problemas específicos de AlphaFold, consultar la documentación del proyecto.
+Para problemas específicos de SwissModel, consultar la documentación del proyecto.
 
 ---
 
@@ -333,4 +403,4 @@ Para problemas específicos de AlphaFold, consultar la documentación del proyec
 - Timeout dinámico basado en longitud de secuencia
 - Manejo mejorado de estados asíncronos
 - Extracción automática de métricas de calidad GMQE/QMEAN
-- Integración con AlphaFold Database para información complementaria
+- Integración completa con SwissModel para predicción de estructuras 3D

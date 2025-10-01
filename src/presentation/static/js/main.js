@@ -9,18 +9,18 @@ document.addEventListener('DOMContentLoaded', function () {
     return new bootstrap.Tooltip(tooltipTriggerEl);
   });
 
-  // AlphaFold checkbox functionality
-  const alphaFoldCheck = document.getElementById('alphaFoldCheck');
-  const alphaFoldInfo = document.getElementById('alphaFoldInfo');
+  // SwissModel checkbox functionality
+  const swissModelCheck = document.getElementById('swissModelCheck');
+  const swissModelInfo = document.getElementById('swissModelInfo');
 
-  if (alphaFoldCheck && alphaFoldInfo) {
-    alphaFoldCheck.addEventListener('change', function () {
+  if (swissModelCheck && swissModelInfo) {
+    swissModelCheck.addEventListener('change', function () {
       if (this.checked) {
-        alphaFoldInfo.style.display = 'block';
-        alphaFoldInfo.classList.add('fade-in');
+        swissModelInfo.style.display = 'block';
+        swissModelInfo.classList.add('fade-in');
       } else {
-        alphaFoldInfo.style.display = 'none';
-        alphaFoldInfo.classList.remove('fade-in');
+        swissModelInfo.style.display = 'none';
+        swissModelInfo.classList.remove('fade-in');
       }
     });
   }

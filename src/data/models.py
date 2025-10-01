@@ -35,21 +35,29 @@ class ProteinComparison(db.Model):
     mutation_positions = db.Column(db.String(255), nullable=False)  # Formato: "12,45" para posiciones
     mutations_description = db.Column(db.Text)  # Formato: "A12G,T45C"
     
-    # Links de predicciones AlphaFold
+    # Links de predicciones SwissModel
     original_prediction_url = db.Column(db.String(500))
     mutated_prediction_url = db.Column(db.String(500))
     original_model_path = db.Column(db.String(500))  # Ruta local del archivo PDB/CIF
     mutated_model_path = db.Column(db.String(500))   # Ruta local del archivo PDB/CIF
     
-    # Resultados de AlphaFold
+    # Resultados de SwissModel
     original_confidence_score = db.Column(db.Float)  # Puntuación de confianza promedio
     mutated_confidence_score = db.Column(db.Float)   # Puntuación de confianza promedio
-    alphafold_job_id = db.Column(db.String(100))     # ID del trabajo en AlphaFold
+    swissmodel_job_id = db.Column(db.String(100))     # ID del trabajo en SwissModel
     processing_time = db.Column(db.Float)            # Tiempo de procesamiento en segundos
     
-    # Análisis estructural
+    # Análisis estructural avanzado
     structural_changes = db.Column(db.Text)          # JSON con cambios estructurales detectados
     rmsd_value = db.Column(db.Float)                 # Root Mean Square Deviation entre estructuras
+    
+    # Análisis avanzados de mutaciones
+    stability_change_score = db.Column(db.Float)     # Cambio en estabilidad proteica
+    functional_impact_score = db.Column(db.Float)    # Impacto funcional de las mutaciones
+    dynamics_change_score = db.Column(db.Float)      # Cambio en dinámica molecular
+    thermal_stability_change = db.Column(db.Float)   # Cambio en estabilidad térmica (°C)
+    folding_energy_change = db.Column(db.Float)      # Cambio en energía de plegamiento (kcal/mol)
+    active_site_disruption = db.Column(db.Boolean)   # Si se afecta sitio activo
     
     # Metadatos
     comparison_name = db.Column(db.String(200))
@@ -79,15 +87,22 @@ class ProteinComparison(db.Model):
             'status': self.status,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            # Campos de AlphaFold
+            # Campos de SwissModel
             'original_prediction_url': self.original_prediction_url,
             'mutated_prediction_url': self.mutated_prediction_url,
             'original_model_path': self.original_model_path,
             'mutated_model_path': self.mutated_model_path,
             'original_confidence_score': self.original_confidence_score,
             'mutated_confidence_score': self.mutated_confidence_score,
-            'alphafold_job_id': self.alphafold_job_id,
+            'swissmodel_job_id': self.swissmodel_job_id,
             'processing_time': self.processing_time,
             'structural_changes': self.structural_changes,
-            'rmsd_value': self.rmsd_value
+            'rmsd_value': self.rmsd_value,
+            # Campos avanzados
+            'stability_change_score': self.stability_change_score,
+            'functional_impact_score': self.functional_impact_score,
+            'dynamics_change_score': self.dynamics_change_score,
+            'thermal_stability_change': self.thermal_stability_change,
+            'folding_energy_change': self.folding_energy_change,
+            'active_site_disruption': self.active_site_disruption
         }

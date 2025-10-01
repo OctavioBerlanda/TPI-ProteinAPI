@@ -12,7 +12,7 @@
         Comparador de Proteínas
       </h1>
       <p class="lead text-muted">
-        Compara secuencias de proteínas y analiza mutaciones usando AlphaFold
+        Compara secuencias de proteínas y analiza mutaciones usando SwissModel
       </p>
     </div>
 
@@ -139,8 +139,8 @@
                 <div class="card-body">
                   <h5 class="card-title text-primary">🧬 Predicción de Estructura 3D con Swiss-Model</h5>
                   <div class="form-check">
-                    {{ form.alpha_fold(class="form-check-input", id="alphaFoldCheck") }}
-                    {{ form.alpha_fold.label(class="form-check-label", for="alphaFoldCheck") }}
+                    {{ form.swiss_model(class="form-check-input", id="swissModelCheck") }}
+                    {{ form.swiss_model.label(class="form-check-label", for="swissModelCheck") }}
                   </div>
                   <div class="form-text">
                     <small class="text-muted">
@@ -149,7 +149,7 @@
                       Esto proporcionará modelos 3D interactivos y análisis estructural comparativo.
                     </small>
                   </div>
-                  <div id="alphaFoldInfo" class="alert alert-info mt-2" style="display: none;">
+                  <div id="swissModelInfo" class="alert alert-info mt-2" style="display: none;">
                     <strong>📊 Análisis 3D incluido con Swiss-Model:</strong>
                     <ul class="mb-0 mt-2">
                       <li>Predicción de estructura 3D para ambas secuencias (original y mutada)</li>

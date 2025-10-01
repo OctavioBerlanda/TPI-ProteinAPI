@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 from src.business.sequence_service import SequenceComparisonService, SequenceValidationError
-from src.business.alphafold_service import AlphaFoldService, AlphaFoldIntegrationError
+from src.business.swissmodel_service import SwissModelService, SwissModelIntegrationError
 from src.data.repositories import ProteinComparisonRepository, UserRepository
 
 class ComparisonManager:
@@ -8,7 +8,7 @@ class ComparisonManager:
     
     def __init__(self, config: Dict[str, Any] = None):
         self.sequence_service = SequenceComparisonService(max_mutations=2)
-        self.alphafold_service = AlphaFoldService(config or {}) if config else None
+        self.swissmodel_service = SwissModelService(config or {}) if config else None
     
     def create_comparison(self, username: str, email: str, original_sequence: str, 
                          mutated_sequence: str, comparison_name: str = None, 
@@ -139,11 +139,11 @@ class ComparisonManager:
             'comparisons': [comp.to_dict() for comp in comparisons]
         }
     
-    def create_comparison_with_alphafold(self, username: str, email: str, original_sequence: str, 
+    def create_comparison_with_swissmodel(self, username: str, email: str, original_sequence: str, 
                                        mutated_sequence: str, comparison_name: str = None, 
-                                       description: str = None, enable_alphafold: bool = True) -> Dict[str, Any]:
+                                       description: str = None, enable_swissmodel: bool = True) -> Dict[str, Any]:
         """
-        Crea una nueva comparación de proteínas con integración AlphaFold
+        Crea una nueva comparación de proteínas con integración SwissModel
         
         Args:
             username: Nombre del usuario
@@ -152,7 +152,7 @@ class ComparisonManager:
             mutated_sequence: Secuencia mutada
             comparison_name: Nombre opcional para la comparación
             description: Descripción opcional
-            enable_alphafold: Si habilitar predicción con AlphaFold
+            enable_swissmodel: Si habilitar predicción con SwissModel
             
         Returns:
             Dict con el resultado de la operación incluyendo modelos 3D
@@ -162,7 +162,7 @@ class ComparisonManager:
             'comparison_id': None,
             'errors': [],
             'data': {},
-            'alphafold_results': {
+            'swissmodel_results': {
                 'original': None,
                 'mutated': None,
                 'comparison': None
@@ -184,19 +184,19 @@ class ComparisonManager:
             # No intentar acceder a 'data' ya que create_comparison no lo retorna
             result['message'] = comparison_result.get('message', 'Comparación creada')
             
-            # 2. Si AlphaFold está habilitado, procesar estructuras 3D
-            if enable_alphafold and self.alphafold_service:
+            # 2. Si SwissModel está habilitado, procesar estructuras 3D
+            if enable_swissmodel and self.swissmodel_service:
                 try:
-                    result['alphafold_results'] = self._process_alphafold_predictions(
+                    result['swissmodel_results'] = self._process_swissmodel_predictions(
                         comparison_id, original_sequence, mutated_sequence, comparison_name
                     )
                     
                     # Actualizar el estado de la comparación a completada
-                    self._update_comparison_alphafold_data(comparison_id, result['alphafold_results'])
+                    self._update_comparison_swissmodel_data(comparison_id, result['swissmodel_results'])
                     
-                except AlphaFoldIntegrationError as e:
-                    result['errors'].append(f"Error en AlphaFold: {str(e)}")
-                    # No fallar toda la comparación por errores de AlphaFold
+                except SwissModelIntegrationError as e:
+                    result['errors'].append(f"Error en SwissModel: {str(e)}")
+                    # No fallar toda la comparación por errores de SwissModel
                     
             result['success'] = True
             return result
@@ -205,9 +205,9 @@ class ComparisonManager:
             result['errors'].append(f"Error procesando comparación: {str(e)}")
             return result
     
-    def _process_alphafold_predictions(self, comparison_id: int, original_sequence: str, mutated_sequence: str, comparison_name: str = None) -> Dict[str, Any]:
+    def _process_swissmodel_predictions(self, comparison_id: int, original_sequence: str, mutated_sequence: str, comparison_name: str = None) -> Dict[str, Any]:
         """
-        Procesa las predicciones de AlphaFold para ambas secuencias con una jerarquía de métodos.
+        Procesa las predicciones de SwissModel para ambas secuencias con una jerarquía de métodos.
         """
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
@@ -219,7 +219,7 @@ class ComparisonManager:
             comparison = ProteinComparisonRepository.get_comparison_by_id(comparison_id)
             if comparison and comparison.user_id:
                 print("🧹 Limpiando modelos antiguos del usuario...")
-                cleanup_stats = self.alphafold_service.cleanup_old_models(
+                cleanup_stats = self.swissmodel_service.cleanup_old_models(
                     user_id=comparison.user_id, 
                     keep_recent=3  # Mantener las 3 comparaciones más recientes
                 )
@@ -228,65 +228,71 @@ class ComparisonManager:
         except Exception as e:
             print(f"   ⚠️ Error en limpieza (continuando): {str(e)}")
 
-        # --- Paso 1: Obtener la estructura ORIGINAL (sin cambios) ---
+        # --- Paso 1: Obtener la estructura ORIGINAL con múltiples modelos ---
         print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
         original_job_name = f"{comparison_name}_original_ref"
-        original_result = self.alphafold_service.predict_structure(
-            original_sequence, original_job_name
+        original_result = self.swissmodel_service.predict_structure(
+            original_sequence, original_job_name, return_all_models=True
         )
 
-        # --- Paso 2: Predecir la estructura MUTADA con la nueva lógica SWISS-MODEL ---
-        print("\n➡️  Paso 2: Prediciendo directamente la estructura para la secuencia mutada...")
+        # --- Paso 2: Generar la estructura MUTADA aplicando mutaciones a los modelos originales ---
+        print("\n➡️  Paso 2: Generando estructura mutada desde modelos originales...")
         mutated_job_name = f"{comparison_name}_mutated_pred"
         
-        # NUEVA LÓGICA: Usar directamente predict_structure que ya maneja SWISS-MODEL
+        # Obtener las mutaciones
+        validation_result = self.sequence_service.validate_and_compare_sequences(original_sequence, mutated_sequence)
+        mutations = [(m['position'], m['original_amino_acid'], m['mutated_amino_acid']) for m in validation_result['mutations']['mutations']]
+        
         try:
-            print("🔬 Usando SWISS-MODEL para la secuencia mutada...")
-            mutated_result = self.alphafold_service.predict_structure(
-                mutated_sequence, mutated_job_name
+            print(f"🔬 Aplicando {len(mutations)} mutación(es) usando algoritmos avanzados...")
+            mutated_result = self.swissmodel_service.predict_mutated_structure_advanced(
+                original_result, mutations, mutated_job_name
             )
-        except AlphaFoldIntegrationError as e:
-            print(f"⚠️ SWISS-MODEL falló: {e}. Usando simulación local como fallback.")
-            # Como último recurso, usar la simulación local
-            mutated_result = self.alphafold_service._predict_improved_simulation(
-                mutated_sequence, 
-                mutated_job_name, 
-                is_mutation=True,
-                original_sequence=original_sequence
+        except SwissModelIntegrationError as e:
+            print(f"⚠️ Falló la predicción mutada desde modelos: {e}. Usando SWISS-MODEL directo como fallback.")
+            # Fallback: predecir directamente con SWISS-MODEL
+            mutated_result = self.swissmodel_service.predict_structure(
+                mutated_sequence, mutated_job_name
             )
 
         # --- Paso 3: Comparar ambas estructuras (sin cambios) ---
         print("\n➡️  Paso 3: Comparando ambas estructuras...")
-        structural_comparison = self.alphafold_service.compare_structures(
+        structural_comparison = self.swissmodel_service.compare_structures(
             original_result, mutated_result
         )
 
         return {
-            'original': original_result,
+            'original': original_result.get('best_model', original_result),
             'mutated': mutated_result,
             'comparison': structural_comparison
         }
-    def _update_comparison_alphafold_data(self, comparison_id: int, alphafold_results: Dict[str, Any]):
+    def _update_comparison_swissmodel_data(self, comparison_id: int, swissmodel_results: Dict[str, Any]):
         """
-        Actualiza la comparación con los datos de AlphaFold
+        Actualiza la comparación con los datos de SwissModel
         
         Args:
             comparison_id: ID de la comparación
-            alphafold_results: Resultados de AlphaFold
+            swissmodel_results: Resultados de SwissModel
         """
         try:
             repo = ProteinComparisonRepository()
             
             import json
             
-            original = alphafold_results.get('original', {})
-            mutated = alphafold_results.get('mutated', {})
-            comparison = alphafold_results.get('comparison', {})
+            original = swissmodel_results.get('original', {})
+            mutated = swissmodel_results.get('mutated', {})
+            comparison = swissmodel_results.get('comparison', {})
             
             # Convertir structural_changes a JSON si es un diccionario
             structural_changes = comparison.get('structural_changes')
             if structural_changes and isinstance(structural_changes, dict):
                 structural_changes = json.dumps(structural_changes)
+            
+            # Extraer datos avanzados de análisis
+            mutated_advanced = mutated.get('structural_analysis', {})
+            stability_data = mutated.get('stability_analysis', {})
+            functional_data = mutated.get('functional_analysis', {})
+            dynamics_data = mutated.get('dynamics_analysis', {})
             
             update_data = {
                 'original_model_path': original.get('model_path'),
@@ -295,15 +301,24 @@ class ComparisonManager:
                 'mutated_prediction_url': mutated.get('model_url'),
                 'original_confidence_score': float(original.get('confidence', 0.0)),
                 'mutated_confidence_score': float(mutated.get('confidence', 0.0)),
-                'alphafold_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
+                'swissmodel_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
                 'processing_time': float(original.get('processing_time', 0.0) + mutated.get('processing_time', 0.0)),
                 'structural_changes': structural_changes,
                 'rmsd_value': float(comparison.get('rmsd_value', 0.0)),
+                
+                # Nuevos campos para análisis avanzado
+                'stability_change_score': float(stability_data.get('stability_change_score', 0.0)),
+                'functional_impact_score': float(functional_data.get('functional_impact_score', 0.0)),
+                'dynamics_change_score': float(dynamics_data.get('dynamics_change_score', 0.0)),
+                'thermal_stability_change': float(stability_data.get('thermal_stability_change', 0.0)),
+                'folding_energy_change': float(stability_data.get('folding_energy_change', 0.0)),
+                'active_site_disruption': functional_data.get('active_site_disruption', False),
+                
                 'status': 'completed'
             }
             
             repo.update_comparison(comparison_id, update_data)
             
         except Exception as e:
-            print(f"Error actualizando datos de AlphaFold: {e}")
+            print(f"Error actualizando datos de SwissModel: {e}")
             # No lanzar excepción para no interrumpir el flujo

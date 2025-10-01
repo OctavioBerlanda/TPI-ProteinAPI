@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Resultados AlphaFold - Comparación {{ comparison_id }}{% endblock %}
+{% block title %}Resultados SwissModel - Comparación {{ comparison_id }}{% endblock %}
 
 {% block content %}
 <div class="container">
   <div class="row">
     <div class="col-md-12">
-      <h1>🧬 Resultados de AlphaFold</h1>
+      <h1>🧬 Resultados de SwissModel</h1>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
           <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Inicio</a></li>
@@ -46,7 +46,7 @@
               <p><strong>Tiempo de procesamiento:</strong> {{ "%.2f"|format(comparison.comparison.processing_time or 0)
                 }} segundos
               </p>
-              <p><strong>Método de predicción:</strong> AlphaFold</p>
+              <p><strong>Método de predicción:</strong> SwissModel</p>
             </div>
           </div>
         </div>
@@ -66,7 +66,7 @@
           {% set is_mutated_original = comparison.comparison.original_confidence_score and
           comparison.comparison.mutated_confidence_score and comparison.comparison.original_confidence_score >= 90 and
           comparison.comparison.mutated_confidence_score >= 75 and comparison.comparison.mutated_confidence_score < 90
-            %} {% if is_real_original %} <span class="badge bg-success ms-2">📡 AlphaFold DB Real</span>
+            %} {% if is_real_original %} <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
             {% else %}
             <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
             {% endif %}
@@ -80,7 +80,7 @@
           {% if is_real_original %}
           <div class="alert alert-success alert-sm mb-3">
             <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de AlphaFold Database con máxima confianza experimental.
+            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
           </div>
           {% else %}
           <div class="alert alert-warning alert-sm mb-3">
@@ -124,10 +124,10 @@
           <h4>🧪 Secuencia Mutada</h4>
           <!-- Badge para distinguir tipo de predicción -->
           {% if is_mutated_original %}
-          <span class="badge bg-warning ms-2">📡 AlphaFold DB Real (Mutada)</span>
+          <span class="badge bg-warning ms-2">📡 SwissModel DB Real (Mutada)</span>
           {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
           90 %}
-          <span class="badge bg-success ms-2">📡 AlphaFold DB Real</span>
+          <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
           {% else %}
           <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
           {% endif %}
@@ -141,14 +141,14 @@
           {% if is_mutated_original %}
           <div class="alert alert-warning alert-sm mb-3">
             <i class="fas fa-exclamation-circle"></i>
-            <strong>Estructura Real Mutada:</strong> Basada en AlphaFold DB pero con confianza reducida por la mutación
+            <strong>Estructura Real Mutada:</strong> Basada en SwissModel DB pero con confianza reducida por la mutación
             detectada.
           </div>
           {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
           90 %}
           <div class="alert alert-success alert-sm mb-3">
             <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de AlphaFold Database con máxima confianza experimental.
+            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
           </div>
           {% else %}
           <div class="alert alert-warning alert-sm mb-3">
@@ -347,8 +347,8 @@
           <!-- Mensaje cuando no hay modelos disponibles -->
           <div class="alert alert-warning">
             <h5>⚠️ Sin Modelos 3D</h5>
-            <p>Esta comparación no incluye modelos 3D generados por AlphaFold. Para obtener visualización 3D, ejecuta
-              una nueva comparación con la opción "Habilitar AlphaFold" activada.</p>
+            <p>Esta comparación no incluye modelos 3D generados por SwissModel. Para obtener visualización 3D, ejecuta
+              una nueva comparación con la opción "Habilitar SwissModel" activada.</p>
           </div>
           {% endif %}
         </div>
@@ -672,7 +672,7 @@
       }, 2000); // Increased timeout to 2 seconds
     }
 
-    console.log('AlphaFold results page loaded for comparison {{ comparison_id }}');
+    console.log('SwissModel results page loaded for comparison {{ comparison_id }}');
   });
 </script>
 {% endblock %}
