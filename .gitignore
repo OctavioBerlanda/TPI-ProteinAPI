@@ -1,5 +1,5 @@
 # 🧬 TPI-ProteinAPI - .gitignore
-.env
+env
 *.env/
 
 # Python
