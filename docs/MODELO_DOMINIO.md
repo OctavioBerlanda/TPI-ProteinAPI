@@ -149,11 +149,11 @@ User (1) -----> (N) ProteinComparison
   - `create_comparison()`: Crea nueva comparación en BD
   - `get_comparison_details()`: Recupera detalles de comparación
   - `get_user_comparisons()`: Lista comparaciones de usuario
-  - `create_comparison_with_alphafold()`: Crea comparación con predicción 3D
+  - `create_comparison_with_swissmodel()`: Crea comparación con predicción 3D
 
-#### 4.4. AlphaFoldService
+#### 4.4. SwissModelService
 
-- **Responsabilidad**: Integración con Swiss-Model y AlphaFold Database
+- **Responsabilidad**: Integración completa con Swiss-Model para predicción de estructuras 3D
 - **Métodos principales**:
   - `predict_structure()`: Coordina predicción de estructura 3D
   - `_predict_with_swiss_model()`: Implementa flujo asíncrono Swiss-Model
@@ -164,7 +164,7 @@ User (1) -----> (N) ProteinComparison
   - Timeout dinámico basado en longitud de secuencia
   - Manejo de estados asíncronos (PENDING, RUNNING, COMPLETED)
   - Extracción de métricas de calidad (GMQE, QMEAN)
-  - Integración con base de datos AlphaFold para información adicional
+  - Integración completa con SwissModel para predicción de estructuras 3D
 
 ---
 
@@ -201,7 +201,7 @@ User (1) -----> (N) ProteinComparison
 #### 6.2. Crear Comparación con Predicción 3D
 
 1. **Actor**: Usuario/Investigador
-2. **Precondición**: Usuario marca checkbox "Incluir Predicción de AlphaFold"
+2. **Precondición**: Usuario marca checkbox "Incluir Predicción de SwissModel"
 3. **Flujo**:
    - Sistema ejecuta flujo de comparación estándar
    - Sistema inicia predicción Swiss-Model para secuencia original
@@ -270,8 +270,7 @@ User (1) -----> (N) ProteinComparison
 - **Testing**: unittest (Python estándar)
 - **Validación**: WTForms, Flask-WTF
 - **APIs Externas**:
-  - **Swiss-Model API**: Predicción de estructuras 3D por homología
-  - **AlphaFold Database**: Consulta de datos de proteínas conocidas
+  - **SwissModel API**: Predicción completa de estructuras 3D por homología
 - **Formatos de Archivo**: PDB, CIF para modelos 3D
 - **Bibliotecas Científicas**:
   - **BioPython**: Manejo de secuencias y estructuras
@@ -280,11 +279,11 @@ User (1) -----> (N) ProteinComparison
 
 ---
 
-### 9. INTEGRACIÓN SWISS-MODEL Y ALPHAFOLD
+### 9. INTEGRACIÓN SWISS-MODEL
 
 #### 9.1. Swiss-Model para Predicción 3D
 
-El sistema ahora incluye integración completa con **Swiss-Model** para predicción de estructuras 3D:
+El sistema incluye integración completa con **Swiss-Model** para predicción de estructuras 3D:
 
 ##### **Flujo de Predicción 3D**
 
@@ -304,21 +303,21 @@ El sistema ahora incluye integración completa con **Swiss-Model** para predicci
 - **QMEAN Score**: Qualitative Model Energy Analysis (Z-score)
 - **Confianza**: Calculada principalmente desde GMQE (× 100%)
 
-#### 9.2. AlphaFold para Datos Informativos
+#### 9.2. SwissModel para Predicción Completa
 
-**AlphaFold** se utiliza para obtener información de proteínas conocidas:
+**SwissModel** se utiliza para predicción completa de estructuras 3D por homología:
 
-- **UniProt ID**: Identificador de la proteína
-- **Nombre de proteína**: Descripción funcional
-- **Organismo**: Especie de origen
-- **Versión AlphaFold**: Versión de la base de datos
+- **Template usado**: Estructura homóloga como base
+- **Secuencia identidad**: Porcentaje de identidad con template
+- **Cobertura**: Porcentaje de secuencia cubierta
+- **GMQE**: Global Model Quality Estimation (0-1)
 
 #### 9.3. Reglas de Negocio de Integración
 
 ##### **RN-008: Predicción 3D Opcional**
 
 - **Descripción**: La predicción 3D es opcional via checkbox en el formulario
-- **Implementación**: Campo `enable_alphafold` en comparaciones
+- **Implementación**: Campo `enable_swissmodel` en comparaciones
 - **Duración**: Variable según longitud de secuencia (5-10 minutos)
 
 ##### **RN-009: Gestión de Timeouts**

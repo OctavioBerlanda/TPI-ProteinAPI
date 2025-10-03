@@ -10,7 +10,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config.config import get_config_dict
-from src.business.alphafold_service import AlphaFoldService
+from src.business.swissmodel_service import SwissModelService
 
 def main():
     """Ejecuta la limpieza manual de modelos"""
@@ -19,16 +19,16 @@ def main():
     
     # Cargar configuración
     config = get_config_dict('development')
-    alphafold_service = AlphaFoldService(config)
+    swissmodel_service = SwissModelService(config)
     
     # Mostrar directorio de modelos
-    print(f"📁 Directorio de modelos: {alphafold_service.models_directory}")
+    print(f"📁 Directorio de modelos: {swissmodel_service.models_directory}")
     
     # Listar archivos actuales
     try:
         model_files = []
-        if os.path.exists(alphafold_service.models_directory):
-            for file in os.listdir(alphafold_service.models_directory):
+        if os.path.exists(swissmodel_service.models_directory):
+            for file in os.listdir(swissmodel_service.models_directory):
                 if file.endswith(('.pdb', '.cif')):
                     model_files.append(file)
         
@@ -36,7 +36,7 @@ def main():
         if model_files:
             total_size = 0
             for file in model_files:
-                file_path = os.path.join(alphafold_service.models_directory, file)
+                file_path = os.path.join(swissmodel_service.models_directory, file)
                 size = os.path.getsize(file_path)
                 total_size += size
                 print(f"   - {file} ({size/1024:.1f} KB)")
@@ -57,7 +57,7 @@ def main():
         if choice == "1":
             # Limpieza global
             print("\n🧹 Ejecutando limpieza global...")
-            stats = alphafold_service.cleanup_old_models(keep_recent=2)
+            stats = swissmodel_service.cleanup_old_models(keep_recent=2)
             
         elif choice == "2":
             # Limpieza de usuario específico
@@ -65,7 +65,7 @@ def main():
             try:
                 user_id = int(user_id)
                 print(f"\n🧹 Ejecutando limpieza para usuario {user_id}...")
-                stats = alphafold_service.cleanup_old_models(user_id=user_id, keep_recent=2)
+                stats = swissmodel_service.cleanup_old_models(user_id=user_id, keep_recent=2)
             except ValueError:
                 print("❌ ID de usuario inválido")
                 return
