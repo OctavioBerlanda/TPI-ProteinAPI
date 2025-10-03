@@ -49,6 +49,14 @@
               <p><strong>Método de predicción:</strong> SwissModel</p>
             </div>
           </div>
+          {% if comparison.comparison.mutation_report_path %}
+          <div class="mt-3 d-flex justify-content-end">
+            <a href="{{ url_for('main.serve_swissmodel_report', filename=comparison.comparison.mutation_report_path) }}"
+              class="btn btn-outline-info" target="_blank" rel="noopener">
+              📄 Abrir reporte avanzado de mutaciones
+            </a>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>

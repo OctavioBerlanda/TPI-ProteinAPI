@@ -1,3 +1,4 @@
+import json
 from typing import Dict, Any, Optional
 from src.business.sequence_service import SequenceComparisonService, SequenceValidationError
 from src.business.swissmodel_service import SwissModelService, SwissModelIntegrationError
@@ -99,8 +100,27 @@ class ComparisonManager:
         from src.business.sequence_service import SequenceValidator
         mutations_summary = SequenceValidator.get_mutation_summary(differences)
         
+        comparison_dict = comparison.to_dict()
+
+        structural_changes_data = None
+        structural_changes_raw = comparison_dict.get('structural_changes')
+        if structural_changes_raw:
+            if isinstance(structural_changes_raw, dict):
+                structural_changes_data = structural_changes_raw
+            elif isinstance(structural_changes_raw, str):
+                try:
+                    structural_changes_data = json.loads(structural_changes_raw)
+                except json.JSONDecodeError:
+                    structural_changes_data = None
+
+        if structural_changes_data:
+            comparison_dict['structural_changes_data'] = structural_changes_data
+            mutation_report_path = structural_changes_data.get('mutation_report_path')
+            if mutation_report_path:
+                comparison_dict['mutation_report_path'] = mutation_report_path
+
         return {
-            'comparison': comparison.to_dict(),
+            'comparison': comparison_dict,
             'mutations_analysis': mutations_summary,
             'user': {
                 'id': comparison.user.id,
@@ -254,7 +274,10 @@ class ComparisonManager:
         try:
             print(f"🔬 Aplicando {len(mutations)} mutación(es) usando algoritmos avanzados...")
             mutated_result = self.swissmodel_service.predict_mutated_structure_advanced(
-                original_result, mutations, mutated_job_name
+                original_result,
+                mutations,
+                mutated_job_name,
+                mutated_sequence,
             )
             print(f"   ✅ Modelo mutado generado exitosamente")
         except SwissModelIntegrationError as e:
@@ -314,9 +337,43 @@ class ComparisonManager:
             comparison = swissmodel_results.get('comparison', {})
             
             # Convertir structural_changes a JSON si es un diccionario
-            structural_changes = comparison.get('structural_changes')
-            if structural_changes and isinstance(structural_changes, dict):
-                structural_changes = json.dumps(structural_changes)
+            structural_changes = comparison.get('structural_changes') or {}
+
+            mutation_report_path = mutated.get('mutation_report_path')
+            mutation_report_relative = None
+            if mutation_report_path:
+                from pathlib import Path
+
+                base_dir = Path(self.swissmodel_service.models_directory)
+                base_dir_resolved = base_dir if base_dir.is_absolute() else base_dir.resolve()
+                report_path_obj = Path(mutation_report_path)
+
+                try:
+                    if report_path_obj.is_absolute():
+                        mutation_report_relative = str(report_path_obj.relative_to(base_dir_resolved))
+                    else:
+                        mutation_report_relative = str(report_path_obj.relative_to(base_dir))
+                except (ValueError, RuntimeError):
+                    mutation_report_relative = mutation_report_path
+
+            if isinstance(structural_changes, dict):
+                structural_changes = structural_changes.copy()
+                if mutation_report_relative:
+                    structural_changes['mutation_report_path'] = mutation_report_relative.replace('\\', '/')
+                structural_changes_serialized = json.dumps(structural_changes)
+            elif structural_changes:
+                try:
+                    structural_changes_dict = json.loads(structural_changes)
+                except (TypeError, json.JSONDecodeError):
+                    structural_changes_dict = {}
+                if mutation_report_relative:
+                    structural_changes_dict['mutation_report_path'] = mutation_report_relative.replace('\\', '/')
+                structural_changes_serialized = json.dumps(structural_changes_dict) if structural_changes_dict else structural_changes
+            else:
+                if mutation_report_relative:
+                    structural_changes_serialized = json.dumps({'mutation_report_path': mutation_report_relative.replace('\\', '/')})
+                else:
+                    structural_changes_serialized = None
             
             # Extraer datos avanzados de análisis
             mutated_advanced = mutated.get('structural_analysis', {})
@@ -333,7 +390,7 @@ class ComparisonManager:
                 'mutated_confidence_score': float(mutated.get('confidence', 0.0)),
                 'swissmodel_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
                 'processing_time': float(original.get('processing_time', 0.0) + mutated.get('processing_time', 0.0)),
-                'structural_changes': structural_changes,
+                'structural_changes': structural_changes_serialized,
                 'rmsd_value': float(comparison.get('rmsd_value', 0.0)),
                 
                 # Nuevos campos para análisis avanzado

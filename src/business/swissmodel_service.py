@@ -5,7 +5,6 @@ Maneja la comunicación con la API de SwissModel y el procesamiento de modelos 3
 import os
 import json
 import time
-import math
 import requests
 import tempfile
 import numpy as np
@@ -15,8 +14,12 @@ from pathlib import Path
 from Bio.Blast import NCBIWWW, NCBIXML
 import re
 from .sequence_service import SequenceValidator
-from Bio.PDB import MMCIFParser
+from Bio.PDB import MMCIFParser, PDBParser, Superimposer, ShrakeRupley
+from Bio.PDB.Polypeptide import is_aa
 import io
+from .consensus_model import ConsensusModelBuilder
+from .mutation_scoring import MutationDescriptor, MutationEnvironment, MutationScorer
+from .mutation_report import build_mutation_report
 
 class SwissModelIntegrationError(Exception):
     """Excepción personalizada para errores de integración con SwissModel"""
@@ -42,6 +45,12 @@ class SwissModelService:
         
         # Crear directorio de modelos si no existe
         Path(self.models_directory).mkdir(parents=True, exist_ok=True)
+
+        self.consensus_builder = ConsensusModelBuilder(
+            max_templates=config.get('SWISSMODEL_CONSENSUS_TEMPLATES', 3)
+        )
+        self.mutation_scorer = MutationScorer()
+        self.structure_parser = PDBParser(QUIET=True)
 
     def cleanup_old_models(self, user_id: int = None, keep_recent: int = 3) -> Dict[str, Any]:
         """
@@ -205,22 +214,23 @@ class SwissModelService:
             Dict con información del modelo predicho
         """
         start_time = time.time()
+        clean_sequence = sequence.strip()
         
         try:
-            print(f"🔬 Iniciando predicción de estructura para secuencia de {len(sequence)} residuos...")
-            print(f"   📄 Secuencia: {sequence[:50]}{'...' if len(sequence) > 50 else ''}")
+            print(f"🔬 Iniciando predicción de estructura para secuencia de {len(clean_sequence)} residuos...")
+            print(f"   📄 Secuencia: {clean_sequence[:50]}{'...' if len(clean_sequence) > 50 else ''}")
             print(f"   🎯 Modo: {'MÚLTIPLES MODELOS' if return_all_models else 'MEJOR MODELO'}")
             
             # Validar longitud mínima requerida por SWISS-MODEL
-            if len(sequence) < 30:
-                print(f"   ❌ ERROR: Secuencia demasiado corta ({len(sequence)} < 30 residuos)")
+            if len(clean_sequence) < 30:
+                print(f"   ❌ ERROR: Secuencia demasiado corta ({len(clean_sequence)} < 30 residuos)")
                 raise SwissModelIntegrationError(
                     f"La secuencia debe tener al menos 30 residuos para usar SWISS-MODEL. "
-                    f"Secuencia actual: {len(sequence)} residuos."
+                    f"Secuencia actual: {len(clean_sequence)} residuos."
                 )
             
             # Usar SWISS-MODEL directamente para el modelado 3D
-            result = self._predict_with_swiss_model(sequence, job_name, return_all_models)
+            result = self._predict_with_swiss_model(clean_sequence, job_name, return_all_models)
                 
             processing_time = time.time() - start_time
             result['processing_time'] = processing_time
@@ -264,6 +274,7 @@ class SwissModelService:
         2. Verificar estado (GET polling)
         3. Descargar modelo final (GET)
         """
+        sequence = sequence.strip()
         if not job_name:
             job_name = f"swiss_model_{int(time.time())}"
             
@@ -472,14 +483,43 @@ class SwissModelService:
             print(f"   📊 RESULTADO FINAL: 1 modelo, GMQE={best_result.get('gmqe_score', 'N/A'):.3f}, Confianza={best_result.get('confidence', 'N/A')}%")
         
         # Devolver resultado según el modo
+        consensus_payload = None
+        if return_all_models and results:
+            consensus_filename = os.path.join(
+                self.models_directory, f"{job_name}_consensus.pdb"
+            )
+            try:
+                consensus_result = self.consensus_builder.build(
+                    results,
+                    consensus_filename,
+                    sequence_length=len(sequence),
+                )
+                consensus_payload = {
+                    'consensus_path': consensus_result.path,
+                    'coverage': consensus_result.coverage,
+                    'residue_sasa': consensus_result.residue_sasa,
+                    'weights_used': consensus_result.weights_used,
+                    'template_count': consensus_result.template_count,
+                    'residue_conservation': consensus_result.residue_conservation,
+                    'residue_consensus': consensus_result.residue_consensus,
+                }
+                print(
+                    f"   🤝 Modelo consenso generado ({consensus_result.template_count} plantillas, cobertura {consensus_result.coverage:.2f})"
+                )
+            except Exception as exc:
+                print(f"   ⚠️ No se pudo construir el modelo consenso: {exc}")
+
         if return_all_models:
             return {
                 'models': results,
                 'best_model': best_result,
+                'consensus_model': consensus_payload,
                 'processing_time': processing_time
             }
         else:
             best_result['processing_time'] = processing_time
+            if consensus_payload:
+                best_result['consensus_model'] = consensus_payload
             return best_result
 
     def _download_swiss_model_file(self, model_url: str, job_name: str, headers: Dict[str, str]) -> str:
@@ -532,12 +572,13 @@ class SwissModelService:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     first_line = f.readline().strip()
-                    if first_line.startswith('HEADER') or first_line.startswith('data_'):
+                    first_line_upper = first_line.upper()
+                    valid_prefixes = ('HEADER', 'TITLE', 'REMARK', 'DATA_', 'ATOM')
+                    if not first_line or first_line_upper.startswith(valid_prefixes):
                         print(f"✅ Modelo descargado y descomprimido: {filename} ({len(content)} bytes)")
-                        return file_path
                     else:
                         print(f"⚠️ Archivo descargado pero formato inusual. Primera línea: {first_line[:50]}...")
-                        return file_path
+                    return file_path
             except UnicodeDecodeError:
                 print(f"⚠️ Archivo parece ser binario, pero guardado como: {filename}")
                 return file_path
@@ -895,425 +936,259 @@ class SwissModelService:
         print(f"✅ Modelo mutado generado con confianza {mutated_result['confidence']:.1f}%")
         return mutated_result
 
-    def predict_mutated_structure_advanced(self, original_result: Dict[str, Any], mutations: List[Tuple[int, str, str]], job_name: str) -> Dict[str, Any]:
-        """
-        Predice la estructura mutada usando algoritmos avanzados de modelado molecular
-        
-        Args:
-            original_result: Resultado de predicción de la secuencia original
-            mutations: Lista de mutaciones [(pos, orig_aa, mut_aa), ...]
-            job_name: Nombre para el trabajo mutado
-            
-        Returns:
-            Dict con información avanzada del modelo mutado
-        """
-        if 'models' not in original_result:
-            raise SwissModelIntegrationError("El resultado original no contiene modelos múltiples")
-        
-        models = original_result['models']
-        if not models:
-            raise SwissModelIntegrationError("No hay modelos disponibles en el resultado original")
-        
-        # Seleccionar el mejor modelo como base
-        best_model = sorted(models, key=lambda x: x.get('gmqe_score', 0), reverse=True)[0]
-        original_pdb_path = best_model['model_path']
-        
-        # Crear nombre para el PDB mutado avanzado
-        mutated_pdb_path = original_pdb_path.replace('.pdb', '_mutated_advanced.pdb')
-        if job_name:
-            mutated_pdb_path = os.path.join(self.models_directory, f"{job_name}_mutated_advanced.pdb")
-        
-        print(f"🔬 Iniciando predicción avanzada de mutada con {len(mutations)} mutación(es)...")
-        print(f"   📊 Modelos disponibles: {len(models)}")
-        for i, model in enumerate(models[:3]):  # Mostrar info de los primeros 3 modelos
-            print(f"      Modelo {i+1}: GMQE={model.get('gmqe_score', 'N/A'):.3f}, Confianza={model.get('confidence', 'N/A')}%")
-        print(f"   🎯 Mutaciones: {mutations}")
-        
-        # Paso 1: Aplicar mutaciones con combinación inteligente
-        mutated_pdb_path = self.apply_mutations_with_model_combination(models, mutations, mutated_pdb_path)
-        
-        # Paso 2: Análisis estructural avanzado
-        advanced_analysis = self.perform_advanced_structural_analysis(original_pdb_path, mutated_pdb_path, mutations)
-        
-        # Paso 3: Cálculos de estabilidad y energía
-        stability_analysis = self.calculate_stability_changes(original_pdb_path, mutated_pdb_path, mutations)
-        
-        # Paso 4: Análisis funcional
-        functional_analysis = self.analyze_functional_impacts(mutations, best_model)
-        
-        # Paso 5: Predicción de dinámica molecular simplificada
-        dynamics_analysis = self.predict_dynamics_changes(original_pdb_path, mutated_pdb_path)
-        
-        # Combinar todos los análisis
-        confidence_penalty = self.calculate_confidence_penalty(advanced_analysis, stability_analysis, functional_analysis)
-        
-        mutated_result = best_model.copy()
+    def predict_mutated_structure_advanced(
+        self,
+        original_result: Dict[str, Any],
+        mutations: List[Tuple[int, str, str]],
+        job_name: str,
+        mutated_sequence: str,
+    ) -> Dict[str, Any]:
+        """Construye la estructura mutada usando plantillas consenso y puntuaciones fisicoquímicas."""
+
+        if not mutations:
+            raise SwissModelIntegrationError("Se requieren mutaciones para generar un modelo mutado")
+
+        if 'models' not in original_result or not original_result['models']:
+            raise SwissModelIntegrationError("El resultado original no contiene plantillas suficientes")
+
+        descriptors = [
+            MutationDescriptor(position=pos, original=orig, mutated=mut)
+            for pos, orig, mut in mutations
+        ]
+
+        mutated_job_name = job_name or f"mutated_{int(time.time())}"
+        mutated_templates = self.predict_structure(
+            mutated_sequence,
+            f"{mutated_job_name}_consensus",
+            return_all_models=True,
+        )
+
+        mutated_models = mutated_templates.get('models', [])
+        if not mutated_models:
+            raise SwissModelIntegrationError("SWISS-MODEL no devolvió plantillas para la secuencia mutada")
+
+        mutated_consensus = mutated_templates.get('consensus_model') or {}
+        mutated_consensus_path = mutated_consensus.get('consensus_path') or mutated_models[0]['model_path']
+
+        original_consensus = original_result.get('consensus_model') or {}
+        original_consensus_path = original_consensus.get('consensus_path')
+        if not original_consensus_path:
+            best_original = original_result.get('best_model') or original_result['models'][0]
+            original_consensus_path = best_original['model_path']
+
+        residue_sasa = mutated_consensus.get('residue_sasa', {})
+        residue_conservation = mutated_consensus.get('residue_conservation', {})
+        environments = {
+            descriptor.position: MutationEnvironment(
+                sasa=residue_sasa.get(descriptor.position),
+                is_surface=(
+                    residue_sasa.get(descriptor.position) is not None
+                    and residue_sasa.get(descriptor.position) >= 80.0
+                ),
+                conservation=residue_conservation.get(descriptor.position),
+            )
+            for descriptor in descriptors
+        }
+
+        mutation_scores = self.mutation_scorer.score_mutations(descriptors, environments)
+        structural_metrics = self._compute_structural_metrics(
+            original_consensus_path,
+            mutated_consensus_path,
+            descriptors,
+        )
+        structural_metrics['coverage'] = mutated_consensus.get('coverage', 1.0)
+
+        base_confidence_candidates = [model.get('confidence', 0.0) for model in mutated_models if model.get('confidence') is not None]
+        if base_confidence_candidates:
+            base_confidence = float(np.mean(base_confidence_candidates))
+        else:
+            base_confidence = float(mutated_models[0].get('confidence', 0.0))
+
+        confidence_penalty = self._derive_confidence_penalty(
+            mutation_scores,
+            structural_metrics,
+        )
+        confidence = max(0.0, base_confidence - confidence_penalty)
+
+        mutated_result = mutated_models[0].copy()
         mutated_result.update({
-            'model_path': mutated_pdb_path,
-            'prediction_method': 'advanced_mutation_modeling_with_multi_algorithm_analysis',
-            'mutations_applied': mutations,
-            'original_model_path': original_pdb_path,
-            'confidence': max(0, best_model.get('confidence', 0) - confidence_penalty),
-            'confidence_source': f"Advanced analysis (penalty: {confidence_penalty:.1f})",
-            
-            # Análisis avanzados
-            'structural_analysis': advanced_analysis,
-            'stability_analysis': stability_analysis,
-            'functional_analysis': functional_analysis,
-            'dynamics_analysis': dynamics_analysis,
-            
-            # Métricas derivadas
-            'stability_change_score': stability_analysis.get('stability_change_score', 0),
-            'functional_impact_score': functional_analysis.get('functional_impact_score', 0),
-            'dynamics_change_score': dynamics_analysis.get('dynamics_change_score', 0),
+            'model_path': mutated_consensus_path,
+            'consensus_model': mutated_consensus,
+            'prediction_method': 'consensus_mutation_pipeline_v2',
+            'mutations_applied': [descriptor.notation() for descriptor in descriptors],
+            'original_model_path': original_consensus_path,
+            'confidence': round(confidence, 2),
+            'confidence_source': f"Consensus penalty {confidence_penalty:.2f}",
+            'physicochemical_scores': mutation_scores,
+            'structural_metrics': structural_metrics,
+            'templates_used': len(mutated_models),
+            'processing_time': mutated_templates.get('processing_time'),
         })
-        
-        print(f"✅ Análisis avanzado completado - Confianza final: {mutated_result['confidence']:.1f}%")
-        print(f"   📊 Cambio de estabilidad: {stability_analysis.get('stability_change_score', 0):.2f}")
-        print(f"   🎯 Impacto funcional: {functional_analysis.get('functional_impact_score', 0):.2f}")
-        print(f"   🌊 Cambio dinámico: {dynamics_analysis.get('dynamics_change_score', 0):.2f}")
-        
+
+        reports_dir = Path(self.models_directory) / "reports"
+        report_path = build_mutation_report(
+            reports_dir / f"{mutated_job_name}_mutation_report.html",
+            descriptors,
+            mutation_scores,
+            structural_metrics,
+            mutated_consensus,
+            base_confidence,
+            confidence,
+        )
+        mutated_result['mutation_report_path'] = str(report_path)
+
+        print(
+            "✅ Predicción mutada avanzada completada",
+            f"— Confianza ajustada: {mutated_result['confidence']:.1f}%",
+        )
+        print(
+            f"   📊 ΔΔG media: {mutation_scores['aggregate']['mean_ddg']:.2f} kcal/mol (impacto {mutation_scores['aggregate']['impact_level']})"
+        )
+        if structural_metrics.get('global_rmsd') is not None:
+            print(
+                f"   📐 RMSD global: {structural_metrics['global_rmsd']:.2f} Å | Cobertura: {structural_metrics['coverage']:.2f}"
+            )
+
         return mutated_result
 
-    def perform_advanced_structural_analysis(self, original_pdb: str, mutated_pdb: str, mutations: List[Tuple[int, str, str]]) -> Dict[str, Any]:
-        """
-        Realiza análisis estructural avanzado comparando estructuras original y mutada
-        """
-        from Bio.PDB import PDBParser, NeighborSearch
-        from Bio.PDB.Polypeptide import three_to_one
-        import math
-        
-        analysis = {
-            'rmsd_local': {},
-            'contact_changes': [],
-            'secondary_structure_changes': [],
-            'surface_area_changes': {},
-            'mutation_sites_analysis': []
+    def _compute_structural_metrics(
+        self,
+        original_path: str,
+        mutated_path: str,
+        descriptors: List[MutationDescriptor],
+    ) -> Dict[str, Any]:
+        metrics: Dict[str, Any] = {
+            'global_rmsd': None,
+            'local_rmsd': {},
+            'rmsd_max': None,
+            'sasa_original': None,
+            'sasa_mutated': None,
+            'sasa_delta': None,
+            'aligned_residues': 0,
+            'sequence_overlap': None,
+            'coverage': None,
         }
-        
+
         try:
-            parser = PDBParser(QUIET=True)
-            original_structure = parser.get_structure("original", original_pdb)
-            mutated_structure = parser.get_structure("mutated", mutated_pdb)
-            
-            # Análisis de RMSD local alrededor de mutaciones
-            for pos, orig_aa, mut_aa in mutations:
-                local_rmsd = self.calculate_local_rmsd(original_structure, mutated_structure, pos, radius=10.0)
-                analysis['rmsd_local'][f'pos_{pos}'] = local_rmsd
-                
-                # Análisis del sitio de mutación
-                site_analysis = self.analyze_mutation_site(original_structure, mutated_structure, pos, orig_aa, mut_aa)
-                analysis['mutation_sites_analysis'].append(site_analysis)
-            
-            # Análisis de cambios en contactos
-            contact_changes = self.analyze_contact_changes(original_structure, mutated_structure, mutations)
-            analysis['contact_changes'] = contact_changes
-            
-            # Análisis de área superficial aproximada
-            surface_analysis = self.analyze_surface_area_changes(original_structure, mutated_structure)
-            analysis['surface_area_changes'] = surface_analysis
-            
-        except Exception as e:
-            print(f"⚠️ Error en análisis estructural avanzado: {e}")
-            analysis['error'] = str(e)
-        
-        return analysis
+            original_structure = self.structure_parser.get_structure('original_consensus', original_path)
+            mutated_structure = self.structure_parser.get_structure('mutated_consensus', mutated_path)
+        except Exception as exc:
+            metrics['error'] = f"No se pudieron cargar las estructuras para análisis: {exc}"
+            return metrics
 
-    def calculate_local_rmsd(self, struct1, struct2, center_pos: int, radius: float) -> float:
-        """
-        Calcula RMSD local alrededor de una posición central
-        """
-        from Bio.PDB import Superimposer
-        
-        # Extraer átomos dentro del radio
-        center_atoms_1 = []
-        center_atoms_2 = []
-        
-        for model1, model2 in zip(struct1, struct2):
-            for chain1, chain2 in zip(model1, model2):
-                for residue1, residue2 in zip(chain1, chain2):
-                    if abs(residue1.get_id()[1] - center_pos) <= 5:  # Residuo cercano
-                        for atom1 in residue1:
-                            if atom1.get_name() in ['CA', 'CB', 'N', 'C', 'O']:
-                                center_atoms_1.append(atom1)
-                        for atom2 in residue2:
-                            if atom2.get_name() in ['CA', 'CB', 'N', 'C', 'O']:
-                                center_atoms_2.append(atom2)
-        
-        if len(center_atoms_1) >= 3 and len(center_atoms_2) == len(center_atoms_1):
-            try:
-                superimposer = Superimposer()
-                superimposer.set_atoms(center_atoms_1, center_atoms_2)
-                return superimposer.rms
-            except:
-                return 999.0
-        return 999.0
+        ca_original, ca_mutated = self._collect_ca_atoms(original_structure, mutated_structure)
+        if ca_original and len(ca_original) == len(ca_mutated) and len(ca_original) >= 3:
+            super_imposer = Superimposer()
+            super_imposer.set_atoms(ca_original, ca_mutated)
+            super_imposer.apply(mutated_structure.get_atoms())
+            metrics['global_rmsd'] = round(super_imposer.rms, 3)
+            metrics['aligned_residues'] = len(ca_original)
 
-    def analyze_mutation_site(self, struct1, struct2, pos: int, orig_aa: str, mut_aa: str) -> Dict[str, Any]:
-        """
-        Analiza el entorno del sitio de mutación
-        """
-        analysis = {
-            'position': pos,
-            'original_aa': orig_aa,
-            'mutated_aa': mut_aa,
-            'neighbor_count': 0,
-            'hbond_changes': 0,
-            'hydrophobic_contacts': 0
-        }
-        
-        # Implementación simplificada - en producción usar bibliotecas especializadas
-        analysis['neighbor_count'] = 8  # Placeholder
-        analysis['hbond_changes'] = 1 if mut_aa in ['K', 'R', 'D', 'E'] else 0
-        analysis['hydrophobic_contacts'] = 1 if mut_aa in ['A', 'V', 'L', 'I', 'M', 'F'] else -1
-        
-        return analysis
+        sr = ShrakeRupley()
+        sr.compute(original_structure, level='R')
+        sr.compute(mutated_structure, level='R')
+        metrics['sasa_original'] = round(self._sum_residue_sasa(original_structure), 2)
+        metrics['sasa_mutated'] = round(self._sum_residue_sasa(mutated_structure), 2)
+        metrics['sasa_delta'] = round(metrics['sasa_mutated'] - metrics['sasa_original'], 2)
 
-    def analyze_contact_changes(self, struct1, struct2, mutations: List[Tuple[int, str, str]]) -> List[Dict[str, Any]]:
-        """
-        Analiza cambios en contactos intermoleculares
-        """
-        changes = []
-        
-        # Análisis simplificado de contactos
-        for pos, orig_aa, mut_aa in mutations:
-            change = {
-                'position': pos,
-                'original_aa': orig_aa,
-                'mutated_aa': mut_aa,
-                'contacts_lost': 2,  # Placeholder
-                'contacts_gained': 1,  # Placeholder
-                'net_change': -1
-            }
-            changes.append(change)
-        
-        return changes
+        local_values = []
+        for descriptor in descriptors:
+            atoms_original, atoms_mutated = self._collect_local_atoms(
+                original_structure, mutated_structure, descriptor.position
+            )
+            if atoms_original and len(atoms_original) == len(atoms_mutated) and len(atoms_original) >= 3:
+                local_super = Superimposer()
+                local_super.set_atoms(atoms_original, atoms_mutated)
+                local_rmsd = round(local_super.rms, 3)
+                metrics['local_rmsd'][descriptor.notation()] = local_rmsd
+                local_values.append(local_rmsd)
+            else:
+                metrics['local_rmsd'][descriptor.notation()] = None
 
-    def analyze_surface_area_changes(self, struct1, struct2) -> Dict[str, Any]:
-        """
-        Analiza cambios en área superficial accesible al solvente
-        """
-        # Implementación simplificada - en producción usar DSSP o similar
-        return {
-            'total_sasa_change': -15.5,  # Å²
-            'polar_sasa_change': -5.2,
-            'nonpolar_sasa_change': -10.3,
-            'buried_area_increase': 8.7
-        }
+        if local_values:
+            metrics['rmsd_max'] = max(local_values)
 
-    def calculate_stability_changes(self, original_pdb: str, mutated_pdb: str, mutations: List[Tuple[int, str, str]]) -> Dict[str, Any]:
-        """
-        Calcula cambios en estabilidad proteica usando modelos simplificados
-        """
-        stability = {
-            'stability_change_score': 0.0,
-            'folding_energy_change': 0.0,
-            'thermal_stability_change': 0.0,
-            'mutation_stability_contributions': []
-        }
-        
-        # Calcular contribución de cada mutación
-        total_stability_change = 0.0
-        
-        for pos, orig_aa, mut_aa in mutations:
-            # Modelo simplificado de cambio de energía libre
-            # Basado en matrices de sustitución y propiedades fisicoquímicas
-            energy_change = self.calculate_mutation_energy_change(orig_aa, mut_aa, pos)
-            total_stability_change += energy_change
-            
-            stability['mutation_stability_contributions'].append({
-                'position': pos,
-                'original_aa': orig_aa,
-                'mutated_aa': mut_aa,
-                'energy_change': energy_change,
-                'stability_impact': 'destabilizing' if energy_change > 0 else 'stabilizing'
-            })
-        
-        stability['stability_change_score'] = total_stability_change
-        stability['folding_energy_change'] = total_stability_change * 0.8  # Aproximación
-        stability['thermal_stability_change'] = -total_stability_change * 2.5  # Tm change approximation
-        
-        return stability
+        total_original = sum(1 for residue in original_structure.get_residues() if is_aa(residue, standard=True))
+        total_mutated = sum(1 for residue in mutated_structure.get_residues() if is_aa(residue, standard=True))
+        overlap_denominator = max(1, min(total_original, total_mutated))
+        overlap = metrics['aligned_residues'] / overlap_denominator if overlap_denominator else 0.0
+        metrics['sequence_overlap'] = round(overlap, 3)
+        metrics['coverage'] = metrics['sequence_overlap']
 
-    def calculate_mutation_energy_change(self, orig_aa: str, mut_aa: str, position: int) -> float:
-        """
-        Calcula cambio de energía para una mutación usando modelo simplificado
-        """
-        # Matriz simplificada de energías de sustitución (en kcal/mol)
-        substitution_matrix = {
-            ('G', 'A'): -0.5, ('G', 'V'): 1.2, ('G', 'L'): 2.1, ('G', 'I'): 2.5,
-            ('A', 'V'): 0.3, ('A', 'L'): 1.5, ('A', 'I'): 1.8, ('A', 'F'): 2.2,
-            ('V', 'L'): 0.5, ('V', 'I'): 0.8, ('V', 'F'): 1.5, ('V', 'M'): 0.2,
-            ('L', 'I'): 0.3, ('L', 'F'): 1.0, ('L', 'M'): 0.8, ('L', 'W'): 2.5,
-            ('I', 'F'): 1.2, ('I', 'M'): 1.0, ('I', 'W'): 2.8,
-            ('F', 'W'): 1.5, ('F', 'Y'): 0.8, ('F', 'H'): 2.0,
-            ('S', 'T'): -0.2, ('S', 'N'): 0.5, ('S', 'Q'): 1.2,
-            ('T', 'N'): 0.8, ('T', 'Q'): 1.5, ('T', 'K'): 2.0,
-            ('N', 'Q'): 0.3, ('N', 'H'): 1.0, ('N', 'D'): 1.5,
-            ('Q', 'H'): 0.8, ('Q', 'E'): 0.5, ('Q', 'K'): 1.2,
-            ('H', 'K'): 1.5, ('H', 'R'): 0.8,
-            ('D', 'E'): -0.3, ('D', 'K'): 2.5, ('D', 'R'): 2.8,
-            ('E', 'K'): 2.2, ('E', 'R'): 2.0,
-            ('K', 'R'): -0.5,
-            ('C', 'S'): 1.0, ('C', 'T'): 1.5, ('C', 'M'): 2.0,
-            ('P', 'A'): 1.8, ('P', 'G'): 2.5, ('P', 'S'): 0.5,
-            ('W', 'Y'): 1.2, ('Y', 'H'): 1.8
-        }
-        
-        # Energía base de la mutación
-        key = (orig_aa, mut_aa) if (orig_aa, mut_aa) in substitution_matrix else (mut_aa, orig_aa)
-        base_energy = substitution_matrix.get(key, 2.0)  # Default para mutaciones no comunes
-        
-        # Factores adicionales
-        position_factor = 1.0
-        if position <= 10 or position >= 90:  # Terminales
-            position_factor = 1.3
-        elif 20 <= position <= 40:  # Núcleo hidrofóbico típico
-            position_factor = 1.5
-        
-        # Penalización por cambio de carga
-        charge_change = 0.0
-        charged_aa = {'K', 'R', 'D', 'E', 'H'}
-        if (orig_aa in charged_aa) != (mut_aa in charged_aa):
-            charge_change = 1.5
-        
-        total_energy = (base_energy * position_factor) + charge_change
-        
-        return round(total_energy, 2)
+        return metrics
 
-    def analyze_functional_impacts(self, mutations: List[Tuple[int, str, str]], model_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Analiza impactos funcionales de las mutaciones
-        """
-        functional = {
-            'functional_impact_score': 0.0,
-            'active_site_disruption': False,
-            'binding_interface_changes': [],
-            'catalytic_residue_modification': False,
-            'structural_motif_alteration': [],
-            'mutation_functional_classification': []
-        }
-        
-        total_impact = 0.0
-        
-        for pos, orig_aa, mut_aa in mutations:
-            # Análisis simplificado de impacto funcional
-            impact = self.assess_mutation_functional_impact(pos, orig_aa, mut_aa, model_info)
-            total_impact += impact['score']
-            
-            functional['mutation_functional_classification'].append({
-                'position': pos,
-                'impact_level': impact['level'],
-                'score': impact['score'],
-                'description': impact['description']
-            })
-            
-            if impact['disrupts_active_site']:
-                functional['active_site_disruption'] = True
-            if impact['affects_binding']:
-                functional['binding_interface_changes'].append(pos)
-        
-        functional['functional_impact_score'] = total_impact
-        
-        return functional
+    def _collect_ca_atoms(self, structure_a, structure_b) -> Tuple[List[Any], List[Any]]:
+        atoms_a: List[Any] = []
+        atoms_b: List[Any] = []
+        for chain_a, chain_b in zip(structure_a.get_chains(), structure_b.get_chains()):
+            residues_a = [residue for residue in chain_a if is_aa(residue, standard=True)]
+            residues_b = [residue for residue in chain_b if is_aa(residue, standard=True)]
+            length = min(len(residues_a), len(residues_b))
+            for idx in range(length):
+                residue_a = residues_a[idx]
+                residue_b = residues_b[idx]
+                if 'CA' in residue_a and 'CA' in residue_b:
+                    atoms_a.append(residue_a['CA'])
+                    atoms_b.append(residue_b['CA'])
+        return atoms_a, atoms_b
 
-    def assess_mutation_functional_impact(self, pos: int, orig_aa: str, mut_aa: str, model_info: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Evalúa el impacto funcional de una mutación específica
-        """
-        # Análisis simplificado basado en propiedades de aminoácidos
-        impact = {
-            'score': 0.0,
-            'level': 'low',
-            'description': 'Minor change',
-            'disrupts_active_site': False,
-            'affects_binding': False
-        }
-        
-        # Residuo cargado a hidrofóbico o viceversa
-        charged_to_hydrophobic = (
-            (orig_aa in ['K', 'R', 'D', 'E', 'H'] and mut_aa in ['A', 'V', 'L', 'I', 'M', 'F', 'W', 'Y']) or
-            (mut_aa in ['K', 'R', 'D', 'E', 'H'] and orig_aa in ['A', 'V', 'L', 'I', 'M', 'F', 'W', 'Y'])
-        )
-        
-        if charged_to_hydrophobic:
-            impact['score'] = 3.5
-            impact['level'] = 'high'
-            impact['description'] = 'Charge-hydrophobicity change - potential functional impact'
-            impact['affects_binding'] = True
-        
-        # Cambio de tamaño significativo
-        size_change = abs(self.get_aa_size(orig_aa) - self.get_aa_size(mut_aa))
-        if size_change > 2:
-            impact['score'] += 2.0
-            impact['level'] = 'medium' if impact['level'] == 'low' else 'high'
-            impact['description'] += ' + Significant size change'
-        
-        # Posible residuo catalítico (simplificado)
-        if orig_aa in ['D', 'E', 'H', 'K', 'R', 'C', 'S', 'T', 'Y']:
-            impact['disrupts_active_site'] = True
-            impact['score'] += 1.5
-        
-        return impact
+    def _collect_local_atoms(
+        self,
+        structure_a,
+        structure_b,
+        position: int,
+        window: int = 4,
+    ) -> Tuple[List[Any], List[Any]]:
+        atoms_a: List[Any] = []
+        atoms_b: List[Any] = []
 
-    def get_aa_size(self, aa: str) -> int:
-        """Retorna tamaño relativo del aminoácido"""
-        sizes = {'G': 0, 'A': 1, 'S': 1, 'T': 2, 'C': 2, 'V': 3, 'P': 2, 'L': 4, 'I': 4, 'M': 4, 'F': 5, 'W': 6, 'Y': 5, 'N': 2, 'Q': 3, 'H': 4, 'D': 2, 'E': 3, 'K': 4, 'R': 5}
-        return sizes.get(aa, 3)
+        for chain_a, chain_b in zip(structure_a.get_chains(), structure_b.get_chains()):
+            residues_a = [residue for residue in chain_a if is_aa(residue, standard=True)]
+            residues_b = [residue for residue in chain_b if is_aa(residue, standard=True)]
+            length = min(len(residues_a), len(residues_b))
+            for idx in range(length):
+                residue_a = residues_a[idx]
+                residue_b = residues_b[idx]
+                if abs(residue_a.id[1] - position) <= window:
+                    for atom_name in ('N', 'CA', 'C', 'O', 'CB'):
+                        if atom_name in residue_a and atom_name in residue_b:
+                            atoms_a.append(residue_a[atom_name])
+                            atoms_b.append(residue_b[atom_name])
 
-    def predict_dynamics_changes(self, original_pdb: str, mutated_pdb: str) -> Dict[str, Any]:
-        """
-        Predice cambios en dinámica molecular usando análisis simplificado
-        """
-        dynamics = {
-            'dynamics_change_score': 0.0,
-            'flexibility_changes': [],
-            'stiffness_changes': [],
-            'conformational_entropy_change': 0.0
-        }
-        
-        # Análisis simplificado de dinámica basado en estructura
-        # En producción, usarían ANM (Anisotropic Network Model) o NMA
-        
-        # Placeholder para análisis de flexibilidad
-        dynamics['flexibility_changes'] = [
-            {'region': 'N-terminal', 'change': 'increased', 'magnitude': 1.2},
-            {'region': 'mutation_site', 'change': 'decreased', 'magnitude': 0.8}
-        ]
-        
-        dynamics['stiffness_changes'] = [
-            {'region': 'core', 'change': -0.3},
-            {'region': 'surface', 'change': 0.5}
-        ]
-        
-        # Calcular score total de cambio dinámico
-        total_change = sum(abs(change['magnitude']) for change in dynamics['flexibility_changes']) + \
-                      sum(abs(change['change']) for change in dynamics['stiffness_changes'])
-        
-        dynamics['dynamics_change_score'] = round(total_change / 4.0, 2)
-        dynamics['conformational_entropy_change'] = round(total_change * 0.1, 2)
-        
-        return dynamics
+        return atoms_a, atoms_b
 
-    def calculate_confidence_penalty(self, structural: Dict, stability: Dict, functional: Dict) -> float:
-        """
-        Calcula penalización de confianza basada en análisis avanzados
-        """
+    def _sum_residue_sasa(self, structure) -> float:
+        total = 0.0
+        for residue in structure.get_residues():
+            if is_aa(residue, standard=True):
+                total += getattr(residue, 'sasa', 0.0)
+        return total
+
+    def _derive_confidence_penalty(
+        self,
+        mutation_scores: Dict[str, Any],
+        structural_metrics: Dict[str, Any],
+    ) -> float:
+        aggregate = mutation_scores.get('aggregate', {})
+        mean_ddg = aggregate.get('mean_ddg', 0.0)
+        max_ddg = aggregate.get('max_ddg', 0.0)
         penalty = 0.0
-        
-        # Penalización por cambios estructurales
-        rmsd_penalty = sum(rmsd for rmsd in structural.get('rmsd_local', {}).values() if rmsd < 999) * 2.0
-        penalty += min(rmsd_penalty, 15.0)
-        
-        # Penalización por inestabilidad
-        stability_penalty = abs(stability.get('stability_change_score', 0)) * 3.0
-        penalty += min(stability_penalty, 20.0)
-        
-        # Penalización por impacto funcional
-        functional_penalty = functional.get('functional_impact_score', 0) * 2.5
-        penalty += min(functional_penalty, 25.0)
-        
-        return round(min(penalty, 40.0), 1)  # Máximo 40% de penalización
+
+        penalty += max(0.0, mean_ddg) * 5.5
+        penalty += max(0.0, max_ddg - 0.5) * 2.5
+
+        global_rmsd = structural_metrics.get('global_rmsd')
+        if global_rmsd is not None:
+            penalty += max(0.0, global_rmsd - 0.6) * 12.0
+
+        coverage = structural_metrics.get('coverage', 1.0)
+        penalty += max(0.0, 1.0 - coverage) * 35.0
+
+        local_peak = structural_metrics.get('rmsd_max')
+        if local_peak is not None:
+            penalty += max(0.0, local_peak - 0.8) * 5.0
+
+        return round(min(45.0, penalty), 2)
 
 
 def create_swissmodel_service(config: Dict[str, Any]) -> SwissModelService:
