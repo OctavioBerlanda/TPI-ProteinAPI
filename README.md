@@ -1,4 +1,4 @@
-# 🧬 TPI-ProteinAPI
+# 🧬 TPI-ProteinAPI - Grupo 09
 
 > **Sistema de Análisis y Comparación de Proteínas con Integración SwissModel**
 
@@ -42,12 +42,6 @@ python -c "from src.data.models import init_db; init_db()"
 # 4. Ejecutar aplicación
 python -m src.main
 ```
-
-### Acceso a la Aplicación
-
-- **Web UI:** http://localhost:5000
-- **API REST:** http://localhost:5000/api/
-- **Debug Viewer:** debug_ngl_viewer.html
 
 ## 🔬 Funcionalidades Avanzadas de Predicción de Mutaciones
 
