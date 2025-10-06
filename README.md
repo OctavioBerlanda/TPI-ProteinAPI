@@ -18,29 +18,6 @@ Un sistema web completo para analizar mutaciones en proteínas y comparar sus es
 - ✅ **API REST:** Endpoints para integración programática
 - ✅ **Interfaz Web:** Dashboard intuitivo para usuarios
 
-## 🏗️ Arquitectura del Sistema
-
-```
-TPI-ProteinAPI/
-├── src/
-│   ├── business/          # Lógica de negocio
-│   │   ├── swissmodel_service.py    # Servicio SwissModel
-│   │   ├── comparison_manager.py   # Gestor de comparaciones
-│   │   └── sequence_service.py     # Validación de secuencias
-│   ├── data/             # Capa de datos
-│   │   ├── models.py     # Modelos SQLAlchemy
-│   │   └── repositories.py        # Repositorios de datos
-│   └── presentation/     # Capa de presentación
-│       ├── templates/    # Templates HTML
-│       ├── static/       # CSS/JS
-│       ├── routes.py     # Rutas Flask
-│       └── forms.py      # Formularios WTF
-├── config/               # Configuración
-├── models/               # Modelos 3D generados
-├── tests/                # Tests unitarios
-└── docs/                 # Documentación
-```
-
 ## 🛠️ Instalación
 
 ### Prerrequisitos
