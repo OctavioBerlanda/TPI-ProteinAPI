@@ -2,11 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Reporte de Mutaciones SwissModel</title>
+  <title>Reporte de Mutaciones</title>
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f6f7fb; color: #1b1f24; margin: 0; padding: 0; }
     header { background: linear-gradient(135deg, #2a5298 0%, #1e3c72 100%); color: white; padding: 24px 32px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
     h1 { margin: 0; font-size: 24px; }
+    .report-toolbar { display: flex; align-items: center; justify-content: flex-end; margin: 0 32px; padding: 16px 0 0; }
+    .back-button { background: #1e3c72; color: #fff; border: none; border-radius: 999px; padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 6px rgba(30,60,114,0.2); transition: transform 0.1s ease, box-shadow 0.1s ease; }
+    .back-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(30,60,114,0.25); }
+    .back-button:active { transform: translateY(0); box-shadow: 0 2px 6px rgba(30,60,114,0.2); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 24px 32px; }
     .card { background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 4px 20px rgba(16,24,40,0.08); }
     .card h2 { font-size: 16px; margin: 0 0 12px 0; color: #475467; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -23,20 +27,23 @@
 </head>
 <body>
   <header>
-    <h1>Reporte de mutaciones SwissModel</h1>
-    <p>Confianza base: 68.7% &nbsp; | &nbsp; Confianza ajustada: 48.3%</p>
+    <h1>Reporte de mutaciones</h1>
+    <p>Confianza base: 48.0% &nbsp; | &nbsp; Confianza ajustada: 3.0%</p>
   </header>
+  <div class="report-toolbar">
+    <button class="back-button" onclick="window.history.back()">⬅️ Volver a los resultados</button>
+  </div>
   <section class="grid">
     <article class="card">
       <h2>Resumen estructural</h2>
-      <p><strong>RMSD global:</strong> 0.06 Å</p>
-      <p><strong>Cobertura consenso:</strong> 1.00</p>
-      <p><strong>Pérdida aproximada de cobertura:</strong> 0.0%</p>
+      <p><strong>RMSD global:</strong> 0.76 Å</p>
+      <p><strong>Cobertura consenso:</strong> 0.98</p>
+      <p><strong>Pérdida aproximada de cobertura:</strong> 2.4%</p>
     </article>
     <article class="card">
       <h2>Penalización de confianza</h2>
-      <p><strong>ΔΔG promedio:</strong> +2.60 kcal/mol</p>
-      <p><strong>ΔΔG máximo:</strong> +2.93 kcal/mol</p>
+      <p><strong>ΔΔG promedio:</strong> +15.83 kcal/mol</p>
+      <p><strong>ΔΔG máximo:</strong> +15.83 kcal/mol</p>
       <p><strong>Mutaciones desestabilizantes:</strong> 1.00</p>
     </article>
   </section>
@@ -55,7 +62,7 @@
       </tr>
     </thead>
     <tbody>
-      <tr><td>11</td><td>L11M</td><td>M</td><td>1.00</td><td>97.7</td><td>2.0</td><td>15.0</td><td>+2.28</td><td>destabilizing</td></tr><tr><td>22</td><td>R22K</td><td>K</td><td>1.00</td><td>159.5</td><td>2.0</td><td>26.0</td><td>+2.93</td><td>destabilizing</td></tr>
+      <tr><td>35</td><td>L35E</td><td>E</td><td>1.00</td><td>88.8</td><td>-3.0</td><td>138.0</td><td>+15.83</td><td>destabilizing</td></tr>
     </tbody>
   </table>
   <footer>

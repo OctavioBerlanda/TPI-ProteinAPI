@@ -207,16 +207,26 @@ class ComparisonManager:
             # 2. Si SwissModel está habilitado, procesar estructuras 3D
             if enable_swissmodel and self.swissmodel_service:
                 try:
+                    print(f"🔬 Iniciando procesamiento de SwissModel para comparación #{comparison_id}...")
                     result['swissmodel_results'] = self._process_swissmodel_predictions(
                         comparison_id, original_sequence, mutated_sequence, comparison_name
                     )
                     
+                    print(f"✅ SwissModel predictions completadas. Actualizando BD...")
                     # Actualizar el estado de la comparación a completada
                     self._update_comparison_swissmodel_data(comparison_id, result['swissmodel_results'])
                     
                 except SwissModelIntegrationError as e:
+                    print(f"❌ SwissModelIntegrationError: {str(e)}")
                     result['errors'].append(f"Error en SwissModel: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                     # No fallar toda la comparación por errores de SwissModel
+                except Exception as e:
+                    print(f"❌ Error inesperado en SwissModel: {str(e)}")
+                    result['errors'].append(f"Error inesperado en SwissModel: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
                     
             result['success'] = True
             return result
@@ -314,11 +324,14 @@ class ComparisonManager:
             except Exception as e:
                 print(f"      Error verificando archivos: {e}")
 
-        return {
+        result_data = {
             'original': original_result.get('best_model', original_result),
             'mutated': mutated_result,
             'comparison': structural_comparison
         }
+        
+        print(f"\n✅ _process_swissmodel_predictions completado. Retornando datos...")
+        return result_data
     def _update_comparison_swissmodel_data(self, comparison_id: int, swissmodel_results: Dict[str, Any]):
         """
         Actualiza la comparación con los datos de SwissModel
@@ -327,9 +340,8 @@ class ComparisonManager:
             comparison_id: ID de la comparación
             swissmodel_results: Resultados de SwissModel
         """
+        print(f"\n🔄 Actualizando comparación #{comparison_id} con datos de SwissModel...")
         try:
-            repo = ProteinComparisonRepository()
-            
             import json
             
             original = swissmodel_results.get('original', {})
@@ -404,8 +416,20 @@ class ComparisonManager:
                 'status': 'completed'
             }
             
-            repo.update_comparison(comparison_id, update_data)
+            print(f"   📊 Datos a actualizar:")
+            print(f"      - Original model: {update_data['original_model_path']}")
+            print(f"      - Mutated model: {update_data['mutated_model_path']}")
+            print(f"      - RMSD: {update_data['rmsd_value']}")
+            print(f"      - Status: {update_data['status']}")
+            
+            success = ProteinComparisonRepository.update_comparison(comparison_id, update_data)
+            if success:
+                print(f"   ✅ Comparación #{comparison_id} actualizada exitosamente")
+            else:
+                print(f"   ❌ No se pudo actualizar la comparación #{comparison_id}")
             
         except Exception as e:
-            print(f"Error actualizando datos de SwissModel: {e}")
+            print(f"   ❌ Error actualizando datos de SwissModel: {e}")
+            import traceback
+            traceback.print_exc()
             # No lanzar excepción para no interrumpir el flujo

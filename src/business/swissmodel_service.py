@@ -4,6 +4,7 @@ Maneja la comunicación con la API de SwissModel y el procesamiento de modelos 3
 """
 import os
 import json
+import gzip
 import time
 import requests
 import tempfile
@@ -378,10 +379,44 @@ class SwissModelService:
         # --- PASO 3: Descargar el/los modelo(s) final(es) ---
         print("📥 Paso 3: Descargando modelo(s) final(es)...")
         
+        # Debug: Mostrar la estructura completa de status_data
+        print(f"   🔍 DEBUG - Claves en status_data: {list(status_data.keys())}")
+        print(f"   🔍 DEBUG - status_data completo: {json.dumps(status_data, indent=2)[:1000]}...")
+        
         # Extraer información de los modelos
         models = status_data.get("models", [])
+        
+        # Si no hay modelos en el summary, intentar obtenerlos del endpoint de modelos directos
         if not models:
-            raise SwissModelIntegrationError("SWISS-MODEL completó pero no generó ningún modelo")
+            print(f"   ⚠️ No se encontraron modelos en summary. Intentando endpoint alternativo...")
+            try:
+                # Intentar obtener modelos directamente
+                models_url = f"https://swissmodel.expasy.org/project/{project_id}/models/"
+                models_response = requests.get(models_url, headers=headers, timeout=30)
+                models_response.raise_for_status()
+                models_data = models_response.json()
+                
+                if isinstance(models_data, list):
+                    models = models_data
+                    print(f"   ✅ Encontrados {len(models)} modelo(s) desde endpoint de modelos")
+                elif isinstance(models_data, dict) and "models" in models_data:
+                    models = models_data["models"]
+                    print(f"   ✅ Encontrados {len(models)} modelo(s) desde endpoint de modelos")
+            except Exception as e:
+                print(f"   ⚠️ Error al obtener modelos desde endpoint alternativo: {e}")
+            
+        if not models:
+            print(f"   ❌ ERROR: SWISS-MODEL no pudo generar modelos para esta secuencia.")
+            print(f"   ℹ️ Posibles razones:")
+            print(f"      • La secuencia es demasiado corta ({len(sequence)} aa)")
+            print(f"      • No se encontraron plantillas homólogas en PDB")
+            print(f"      • La secuencia no tiene similitud con proteínas conocidas")
+            print(f"   💡 Sugerencia: Use AlphaFold para secuencias sin homólogos conocidos")
+            raise SwissModelIntegrationError(
+                f"SWISS-MODEL no pudo generar modelos para esta secuencia de {len(sequence)} aminoácidos. "
+                f"No se encontraron plantillas homólogas en la base de datos PDB. "
+                f"Considere usar AlphaFold para predicciones ab initio."
+            )
         
         print(f"   📊 Se generaron {len(models)} modelo(s)")
         
