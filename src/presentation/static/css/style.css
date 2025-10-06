@@ -1,44 +1,54 @@
-/* Custom styles for Protein Comparison App */
+/* Professional styles for Protein Comparison App */
 
 :root {
-  --primary-color: #0066cc;
-  --secondary-color: #28a745;
-  --warning-color: #ffc107;
-  --danger-color: #dc3545;
-  --info-color: #17a2b8;
-  --light-color: #f8f9fa;
-  --dark-color: #343a40;
+  --primary-color: #2c3e50;
+  --secondary-color: #34495e;
+  --accent-color: #3498db;
+  --success-color: #16a085;
+  --warning-color: #e67e22;
+  --danger-color: #c0392b;
+  --light-color: #ecf0f1;
+  --dark-color: #2c3e50;
+  --text-color: #2c3e50;
+  --border-color: #bdc3c7;
+  --muted-color: #7f8c8d;
 }
 
 /* General Styles */
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f5f7fa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+  background-color: #ffffff;
+  color: var(--text-color);
+  line-height: 1.6;
 }
 
 .navbar-brand {
-  font-weight: bold;
-  font-size: 1.25rem;
+  font-weight: 600;
+  font-size: 1.1rem;
+  letter-spacing: 0.3px;
 }
 
 /* Cards */
 .card {
-  border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
-  transition: transform 0.2s ease-in-out;
+  border: 1px solid var(--border-color);
+  box-shadow: none;
+  border-radius: 4px;
+  transition: none;
+  background-color: #ffffff;
 }
 
 .card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: none;
+  box-shadow: none;
 }
 
 .card-header {
-  border-top-left-radius: 10px !important;
-  border-top-right-radius: 10px !important;
-  border-bottom: none;
+  border-top-left-radius: 4px !important;
+  border-top-right-radius: 4px !important;
+  border-bottom: 1px solid var(--border-color);
   font-weight: 600;
+  background-color: #f8f9fa;
+  color: var(--text-color);
 }
 
 /* Form Styles */
@@ -87,14 +97,16 @@ body {
 
 /* Button Styles */
 .btn {
-  border-radius: 8px;
+  border-radius: 3px;
   font-weight: 500;
-  transition: all 0.2s ease-in-out;
+  transition: all 0.15s ease-in-out;
+  padding: 0.5rem 1.25rem;
 }
 
 .btn-primary {
   background-color: var(--primary-color);
   border-color: var(--primary-color);
+  color: #ffffff;
 }
 
 .btn-primary:hover {
@@ -351,12 +363,12 @@ footer {
 }
 
 .protein-model-card {
-  border: 2px solid #007bff;
-  transition: box-shadow 0.3s ease;
+  border: 1px solid var(--border-color);
+  transition: none;
 }
 
 .protein-model-card:hover {
-  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+  box-shadow: none;
 }
 
 .rmsd-display {
@@ -371,13 +383,123 @@ footer {
 }
 
 .rmsd-good {
-  color: #17a2b8;
+  color: var(--success-color);
 }
 
 .rmsd-moderate {
-  color: #ffc107;
+  color: #95a5a6;
 }
 
 .rmsd-poor {
-  color: #dc3545;
+  color: var(--danger-color);
+}
+
+/* Professional enhancements */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-color);
+  font-weight: 600;
+}
+
+.text-primary {
+  color: var(--primary-color) !important;
+}
+
+.bg-primary {
+  background-color: var(--primary-color) !important;
+}
+
+.btn-outline-primary {
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+.navbar {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.alert {
+  border-radius: 4px;
+  border-left-width: 4px;
+}
+
+table {
+  font-size: 0.95rem;
+}
+
+.form-label {
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.lead {
+  font-size: 1.1rem;
+  font-weight: 400;
+}
+
+/* Mutation cards styling */
+.mutation-card {
+  border-left: 4px solid var(--muted-color);
+  transition: border-color 0.2s ease;
+}
+
+.mutation-card:hover {
+  border-left-color: var(--primary-color);
+}
+
+/* Sequence comparison styling */
+code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+.badge {
+  font-weight: 500;
+  padding: 0.4em 0.8em;
+}
+
+/* Text colors */
+.text-success {
+  color: var(--success-color) !important;
+}
+
+.text-warning {
+  color: var(--warning-color) !important;
+}
+
+.text-danger {
+  color: var(--danger-color) !important;
+}
+
+.protein-viewer-container {
+  position: relative;
+  background-color: #ffffff;
+  overflow: hidden;
+}
+
+.viewer-loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+  z-index: 10;
+}
+
+.protein-viewer-container canvas,
+.protein-viewer-container .ngl-canvas,
+.protein-viewer-container .ngl_canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
 }

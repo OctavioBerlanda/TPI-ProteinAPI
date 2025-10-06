@@ -6,7 +6,7 @@
 <div class="container">
   <div class="row">
     <div class="col-md-12">
-      <h1>🧬 Resultados de SwissModel</h1>
+      <h1 style="font-weight: 600; color: var(--primary-color);">Resultados de SwissModel</h1>
       <nav aria-label="breadcrumb">
         <ol class="breadcrumb">
           <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}">Inicio</a></li>
@@ -24,7 +24,7 @@
     <div class="col-md-12">
       <div class="card mb-4">
         <div class="card-header">
-          <h3>📊 Información de la Comparación</h3>
+          <h3>Información de la Comparación</h3>
         </div>
         <div class="card-body">
           <div class="row">
@@ -33,11 +33,6 @@
               <p><strong>Usuario:</strong> {{ comparison.user.username }}</p>
               <p><strong>Fecha:</strong> {{ comparison.comparison.created_at[:19] if comparison.comparison.created_at
                 else 'No disponible' }}</p>
-              <p><strong>Estado:</strong>
-                <span class="badge bg-{{ 'success' if comparison.comparison.status == 'completed' else 'warning' }}">
-                  {{ comparison.comparison.status.title() if comparison.comparison.status else 'Desconocido' }}
-                </span>
-              </p>
             </div>
             <div class="col-md-6">
               <p><strong>Longitud de secuencia:</strong> {{ comparison.comparison.sequence_length or 0 }} aminoácidos
@@ -46,14 +41,13 @@
               <p><strong>Tiempo de procesamiento:</strong> {{ "%.2f"|format(comparison.comparison.processing_time or 0)
                 }} segundos
               </p>
-              <p><strong>Método de predicción:</strong> SwissModel</p>
             </div>
           </div>
           {% if comparison.comparison.mutation_report_path %}
           <div class="mt-3 d-flex justify-content-end">
             <a href="{{ url_for('main.serve_swissmodel_report', filename=comparison.comparison.mutation_report_path) }}"
-              class="btn btn-outline-info" target="_blank" rel="noopener">
-              📄 Abrir reporte avanzado de mutaciones
+              class="btn btn-outline-primary" target="_blank" rel="noopener">
+              Abrir Reporte Avanzado de Mutaciones
             </a>
           </div>
           {% endif %}
@@ -67,16 +61,16 @@
     <div class="col-md-6">
       <div class="card mb-4">
         <div class="card-header">
-          <h4>🎯 Secuencia Original</h4>
+          <h4 style="display: inline-block;">Secuencia Original</h4>
           <!-- Badge para distinguir tipo de predicción -->
           {% set is_real_original = comparison.comparison.original_confidence_score and
           comparison.comparison.original_confidence_score >= 90 %}
           {% set is_mutated_original = comparison.comparison.original_confidence_score and
           comparison.comparison.mutated_confidence_score and comparison.comparison.original_confidence_score >= 90 and
           comparison.comparison.mutated_confidence_score >= 75 and comparison.comparison.mutated_confidence_score < 90
-            %} {% if is_real_original %} <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
+            %} {% if is_real_original %} <span class="badge ms-2" style="background-color: var(--success-color);">Modelado por Homología</span>
             {% else %}
-            <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
+            <span class="badge bg-secondary ms-2">Simulación Mejorada</span>
             {% endif %}
         </div>
         <div class="card-body">
@@ -86,15 +80,8 @@
 
           <!-- Alerta informativa sobre el tipo de predicción -->
           {% if is_real_original %}
-          <div class="alert alert-success alert-sm mb-3">
-            <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
-          </div>
-          {% else %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Simulación:</strong> Estructura generada con algoritmos mejorados de predicción (Chou-Fasman +
-            homología).
+          <div class="alert alert-secondary alert-sm mb-3" style="border-left: 4px solid var(--success-color);">
+            <strong>Modelado por Homología:</strong> Estructura predicha usando SwissModel basada en templates de proteínas homólogas con estructura conocida.
           </div>
           {% endif %}
 
@@ -118,7 +105,7 @@
           <div class="mt-3">
             <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='original') }}"
               class="btn btn-outline-primary btn-sm">
-              📥 Descargar Modelo 3D
+              Descargar Modelo 3D
             </a>
           </div>
           {% endif %}
@@ -129,15 +116,15 @@
     <div class="col-md-6">
       <div class="card mb-4">
         <div class="card-header">
-          <h4>🧪 Secuencia Mutada</h4>
+          <h4 style="display: inline-block;">Secuencia Mutada</h4>
           <!-- Badge para distinguir tipo de predicción -->
           {% if is_mutated_original %}
-          <span class="badge bg-warning ms-2">📡 SwissModel DB Real (Mutada)</span>
+          <span class="badge ms-2" style="background-color: var(--warning-color);">Mutación Aplicada</span>
           {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
           90 %}
-          <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
+          <span class="badge ms-2" style="background-color: var(--success-color);">Modelado por Homología</span>
           {% else %}
-          <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
+          <span class="badge bg-secondary ms-2">Simulación Mejorada</span>
           {% endif %}
         </div>
         <div class="card-body">
@@ -147,22 +134,13 @@
 
           <!-- Alerta informativa sobre el tipo de predicción -->
           {% if is_mutated_original %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-circle"></i>
-            <strong>Estructura Real Mutada:</strong> Basada en SwissModel DB pero con confianza reducida por la mutación
-            detectada.
+          <div class="alert alert-secondary alert-sm mb-3" style="border-left: 4px solid var(--warning-color);">
+            <strong>Estructura con Mutación:</strong> Modelo basado en la estructura original con mutaciones aplicadas mediante algoritmos de minimización energética.
           </div>
           {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
           90 %}
-          <div class="alert alert-success alert-sm mb-3">
-            <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
-          </div>
-          {% else %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Simulación:</strong> Estructura generada con algoritmos mejorados de predicción (Chou-Fasman +
-            homología).
+          <div class="alert alert-secondary alert-sm mb-3" style="border-left: 4px solid var(--success-color);">
+            <strong>Modelado por Homología:</strong> Estructura predicha usando SwissModel basada en templates de proteínas homólogas con estructura conocida.
           </div>
           {% endif %}
           <p><strong>Confianza promedio:</strong>
@@ -185,7 +163,7 @@
           <div class="mt-3">
             <a href="{{ url_for('main.get_model_file', comparison_id=comparison_id, model_type='mutated') }}"
               class="btn btn-outline-primary btn-sm">
-              📥 Descargar Modelo 3D
+              Descargar Modelo 3D
             </a>
           </div>
           {% endif %}
@@ -199,7 +177,7 @@
     <div class="col-md-12">
       <div class="card mb-4">
         <div class="card-header">
-          <h3>🔬 Análisis Estructural Comparativo</h3>
+          <h3>Análisis Estructural Comparativo</h3>
         </div>
         <div class="card-body">
           <div class="row">
@@ -237,11 +215,11 @@
                 (comparison.comparison.original_confidence_score or 0) %}
                 <div class="display-6">
                   {% if confidence_diff > 5 %}
-                  <span class="text-success">✅ Beneficioso</span>
+                  <span style="color: var(--success-color); font-weight: 600;">Beneficioso</span>
                   {% elif confidence_diff > -5 %}
-                  <span class="text-warning">⚪ Neutral</span>
+                  <span style="color: var(--muted-color); font-weight: 600;">Neutral</span>
                   {% else %}
-                  <span class="text-danger">❌ Perjudicial</span>
+                  <span style="color: var(--danger-color); font-weight: 600;">Perjudicial</span>
                   {% endif %}
                 </div>
               </div>
@@ -261,7 +239,7 @@
     <div class="col-md-12">
       <div class="card mb-4">
         <div class="card-header">
-          <h3>🔄 Mutaciones Identificadas</h3>
+          <h3>Mutaciones Identificadas</h3>
         </div>
         <div class="card-body">
           <div class="alert alert-primary">
@@ -281,7 +259,7 @@
     <div class="col-md-12">
       <div class="card mb-4">
         <div class="card-header">
-          <h3>🧊 Visualización 3D Interactiva</h3>
+          <h3>Visualización 3D Interactiva</h3>
         </div>
         <div class="card-body">
           {% if comparison.comparison.original_model_path or comparison.comparison.mutated_model_path %}
@@ -311,13 +289,14 @@
           </div>
 
           <!-- Visualizador NGL -->
-          <div id="protein-viewer" style="height: 500px; border: 1px solid #dee2e6; border-radius: 5px;">
-            <div class="d-flex align-items-center justify-content-center h-100" id="loading-message">
+          <div id="protein-viewer" class="protein-viewer-container" style="height: 500px; border: 1px solid #dee2e6; border-radius: 5px;">
+            <div class="viewer-loading-overlay" id="loading-message">
               <div class="text-center">
-                <div class="spinner-border text-primary" role="status">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
                   <span class="visually-hidden">Cargando...</span>
                 </div>
-                <p class="mt-2 text-muted">Inicializando visualizador 3D...</p>
+                <h5 class="text-muted mb-2">Cargando Visualizador 3D</h5>
+                <p class="text-muted small" id="loading-status">Preparando librería NGL...</p>
               </div>
             </div>
           </div>
@@ -447,13 +426,19 @@
 
     // --- PASO 2: Usar los datos leídos ---
     // Ya no hay Jinja aquí. Todo es JavaScript puro.
-    const originalModelUrl = config.originalModelUrl;
-    const mutatedModelUrl = config.mutatedModelUrl;
+    // Agregar timestamp para evitar caché del navegador
+    const timestamp = new Date().getTime();
+    const originalModelUrl = config.originalModelUrl ? config.originalModelUrl + '?t=' + timestamp : null;
+    const mutatedModelUrl = config.mutatedModelUrl ? config.mutatedModelUrl + '?t=' + timestamp : null;
     const comparisonId = config.comparisonId;
     const originalMethod = config.originalMethod;
     const mutatedMethod = config.mutatedMethod;
     const hasOriginal = config.hasOriginal;
     const hasMutated = config.hasMutated;
+    
+    console.log('🔧 URLs con anti-caché:');
+    console.log('Original:', originalModelUrl);
+    console.log('Mutated:', mutatedModelUrl);
 
     // Configurar las barras de progreso usando data-width
     $('.progress-bar[data-width]').each(function () {
@@ -464,26 +449,81 @@
     // Variables del visualizador
     let stage = null;
     let currentComponents = [];
+    let loaderHidden = false;
+    let loaderTimeout = null;
+
+    function concludeLoading(successMessage = null) {
+      if (loaderTimeout) {
+        clearTimeout(loaderTimeout);
+        loaderTimeout = null;
+      }
+
+      if (stage) {
+        try {
+          if (stage.viewer && typeof stage.viewer.requestRender === 'function') {
+            stage.viewer.requestRender();
+            console.log('✅ requestRender ejecutado correctamente');
+          } else if (typeof stage.handleResize === 'function') {
+            stage.handleResize();
+            console.log('✅ handleResize ejecutado como fallback');
+          } else {
+            console.log('ℹ️ No se encontró un método directo para forzar render; se confía en el render automático');
+          }
+        } catch (forceError) {
+          console.warn('⚠️ No se pudo forzar el render del stage:', forceError);
+        }
+      }
+
+      const loader = $('#loading-message');
+      if (!loaderHidden && loader.length) {
+        loaderHidden = true;
+        console.log('🧼 Ocultando overlay del visualizador... (canvas actuales:', $('#protein-viewer canvas').length, ')');
+        loader.stop(true, true).fadeOut(200, function () {
+          loader.css('pointer-events', 'none');
+          loader.css('display', 'none');
+          $('#protein-viewer').addClass('viewer-ready');
+          if (successMessage) {
+            console.log(successMessage);
+          }
+        });
+      } else if (successMessage) {
+        console.log(successMessage);
+      }
+    }
+
+    function scheduleLoaderTimeout() {
+      if (loaderTimeout) {
+        clearTimeout(loaderTimeout);
+      }
+      loaderTimeout = setTimeout(function () {
+        if (!loaderHidden) {
+          console.warn('⚠️ El renderizado está tardando más de lo esperado. Ocultando indicador de carga.');
+          concludeLoading('⚠️ Se ocultó el cargador por timeout. Revisa la consola si el modelo no aparece.');
+        }
+      }, 12000);
+    }
 
     // Función para inicializar el stage de NGL
     function initializeNGL() {
       console.log('🚀 Starting NGL initialization...');
       console.log('Viewport element exists:', $('#protein-viewer').length > 0);
+      
+      $('#loading-status').text('Creando visualizador 3D...');
 
       try {
         console.log('📦 Creating NGL Stage...');
         stage = new NGL.Stage("protein-viewer");
         console.log('✅ NGL Stage created successfully');
+        window.__proteinViewerStage = stage;
+        console.log('🧭 Canvas detectados tras crear stage:', $('#protein-viewer canvas').length);
 
-        // NO ocultar el mensaje de carga aquí, solo al final
-        console.log('⚙️ Stage created, keeping loading message visible until model loads');
-
-        // Configurar el stage
+        // Configurar el stage con opciones optimizadas para carga rápida
         stage.setParameters({
           backgroundColor: "white",
-          quality: "medium"
+          quality: "low",  // Usar baja calidad inicialmente para carga rápida
+          sampleLevel: 0   // Sin antialiasing para mejor performance
         });
-        console.log('⚙️ Stage parameters set');
+        console.log('⚙️ Stage parameters set (optimized for speed)');
 
         // Auto-cargar el primer modelo disponible
         console.log('🎯 hasOriginal:', hasOriginal);
@@ -499,6 +539,18 @@
           loadMutatedModel();
         } else {
           console.log('⚠️ No models available to load');
+          if (loaderTimeout) {
+            clearTimeout(loaderTimeout);
+            loaderTimeout = null;
+          }
+          loaderHidden = true;
+          $('#loading-message').html(`
+            <div class="text-center text-warning">
+              <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+              <h5>No hay modelos disponibles</h5>
+              <p>No se encontraron estructuras 3D para visualizar</p>
+            </div>
+          `);
         }
 
         console.log('✅ NGL Viewer inicializado correctamente');
@@ -512,6 +564,11 @@
 
     // Función para mostrar errores
     function showError(message) {
+      if (loaderTimeout) {
+        clearTimeout(loaderTimeout);
+        loaderTimeout = null;
+      }
+      loaderHidden = true;
       $('#protein-viewer').html(`
           <div class="d-flex align-items-center justify-content-center h-100">
             <div class="text-center text-danger">
@@ -529,117 +586,222 @@
     // Función para limpiar componentes
     function clearComponents() {
       if (stage) {
+        console.log('🧹 Limpiando componentes...');
         stage.removeAllComponents();
+        currentComponents = [];
+        console.log('✅ Componentes limpiados, stage listo');
       }
     }
 
     // Función para cargar modelo original
     function loadOriginalModel() {
-      if (!originalModelUrl) return;
-      clearComponents();
-      stage.loadFile(originalModelUrl).then(function (component) {
+      if (!originalModelUrl) {
+        console.warn('⚠️ No hay URL para modelo original');
         $('#loading-message').hide();
-
-        // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
-        if (originalMethod && originalMethod.includes('simulation')) {
-          // Es una simulación (solo CA), mostramos una representación más honesta
-          component.addRepresentation("ball+stick", {
-            aspectRatio: 1.5,
-            radius: 0.4
-          });
-          component.addRepresentation("line", {
-            color: "grey",
-            linewidth: 4
-          });
-          console.log('✅ Modelo original (simulado) renderizado con ball+stick');
-        } else {
-          // Es un modelo completo, intentamos cartoon primero
-          try {
-            component.addRepresentation("cartoon", {
-              color: "chainid",
-              radius: 0.5
-            });
-            console.log('✅ Modelo original renderizado con cartoon');
-          } catch (cartoonError) {
-            // Si cartoon falla, usar backbone + ball+stick como fallback
-            console.warn('⚠️ Cartoon falló, usando representación alternativa:', cartoonError);
-            component.addRepresentation("backbone", {
-              color: "chainid",
-              radius: 0.3
-            });
-            component.addRepresentation("ball+stick", {
-              sele: "backbone or .CA",
-              aspectRatio: 2.0,
-              radius: 0.2,
-              color: "chainid"
-            });
-            console.log('✅ Modelo original renderizado con backbone+ball+stick');
-          }
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
         }
-        component.autoView();
+        return;
+      }
+      console.log('🎯 Cargando modelo original desde:', originalModelUrl);
+      
+      // Mostrar mensaje de carga ANTES de limpiar
+      $('#loading-message')
+        .css({ display: 'flex', 'pointer-events': 'auto' })
+        .show();
+      $('#loading-status').text('Preparando visualizador...');
+      loaderHidden = false;
+      scheduleLoaderTimeout();
+      
+      // Limpiar componentes existentes
+      clearComponents();
+      
+      // Actualizar estado y cargar
+      $('#loading-status').text('Descargando modelo original...');
+      
+      stage.loadFile(originalModelUrl).then(function (component) {
+        try {
+          console.log('📦 Modelo original descargado exitosamente');
+          console.log('Component:', component);
+          console.log('Component type:', component.type);
+          
+          $('#loading-status').text('Renderizando estructura 3D...');
+          
+          currentComponents.push(component);
+
+          // Usar representación simple y confiable
+          console.log('🎨 Agregando representación cartoon...');
+          component.addRepresentation("cartoon", {
+            color: "chainid"
+          });
+          console.log('✅ Representación cartoon agregada');
+          
+          // Agregar ball+stick para heteroátomos
+          console.log('🎨 Agregando ball+stick para heteroátomos...');
+          component.addRepresentation("ball+stick", {
+            sele: "hetero"
+          });
+          console.log('✅ Representación ball+stick agregada');
+          
+          console.log('🎬 Ajustando vista automática...');
+          component.autoView();
+        
+          // Forzar actualización del stage
+          setTimeout(function() {
+            console.log('🔄 Finalizando carga del modelo original...');
+            concludeLoading('✅ Modelo original cargado y visible');
+            console.log('🎯 Canvas presentes tras cargar original:', $('#protein-viewer canvas').length);
+          }, 100);
+          
+        } catch (renderError) {
+          console.error('❌ Error durante el renderizado:', renderError);
+          console.error('Stack trace:', renderError.stack);
+          $('#loading-message').hide();
+          loaderHidden = true;
+          if (loaderTimeout) {
+            clearTimeout(loaderTimeout);
+            loaderTimeout = null;
+          }
+          showError('Error al renderizar el modelo: ' + renderError.message);
+        }
       }).catch(function (error) {
+        console.error('❌ Error cargando modelo original:', error);
+        console.error('URL intentada:', originalModelUrl);
+        console.error('Detalles del error:', error);
+        $('#loading-message').hide();
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
+        }
         showError('No se pudo cargar el modelo original: ' + error.message);
       });
     }
 
     // Función para cargar modelo mutado
     function loadMutatedModel() {
-      if (!mutatedModelUrl) return;
-      clearComponents();
-      stage.loadFile(mutatedModelUrl).then(function (component) {
+      if (!mutatedModelUrl) {
+        console.warn('⚠️ No hay URL para modelo mutado');
         $('#loading-message').hide();
-
-        // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
-        if (mutatedMethod && mutatedMethod.includes('simulation')) {
-          // Es una simulación (solo CA), mostramos una representación más honesta
-          component.addRepresentation("ball+stick", {
-            aspectRatio: 1.5,
-            radius: 0.4,
-            color: "red"
-          });
-          component.addRepresentation("line", {
-            color: "grey",
-            linewidth: 4
-          });
-          console.log('✅ Modelo mutado (simulado) renderizado con ball+stick');
-        } else {
-          // Es un modelo completo, intentamos cartoon primero
-          try {
-            component.addRepresentation("cartoon", {
-              color: "chainid",
-              radius: 0.5
-            });
-            console.log('✅ Modelo mutado renderizado con cartoon');
-          } catch (cartoonError) {
-            // Si cartoon falla, usar backbone + ball+stick como fallback
-            console.warn('⚠️ Cartoon falló, usando representación alternativa:', cartoonError);
-            component.addRepresentation("backbone", {
-              color: "chainid",
-              radius: 0.3
-            });
-            component.addRepresentation("ball+stick", {
-              sele: "backbone or .CA",
-              aspectRatio: 2.0,
-              radius: 0.2,
-              color: "chainid"
-            });
-            console.log('✅ Modelo mutado renderizado con backbone+ball+stick');
-          }
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
         }
-        component.autoView();
+        return;
+      }
+      console.log('🧪 Cargando modelo mutado desde:', mutatedModelUrl);
+      
+      // Mostrar mensaje de carga ANTES de limpiar
+      $('#loading-message')
+        .css({ display: 'flex', 'pointer-events': 'auto' })
+        .show();
+      $('#loading-status').text('Preparando visualizador...');
+      loaderHidden = false;
+      scheduleLoaderTimeout();
+      
+      // Limpiar componentes existentes
+      clearComponents();
+      
+      // Actualizar estado y cargar
+      $('#loading-status').text('Descargando modelo mutado...');
+      
+      stage.loadFile(mutatedModelUrl).then(function (component) {
+        try {
+          console.log('📦 Modelo mutado descargado exitosamente');
+          console.log('Component:', component);
+          console.log('Component type:', component.type);
+          
+          $('#loading-status').text('Renderizando estructura 3D...');
+          
+          currentComponents.push(component);
+
+          // Usar representación simple y confiable
+          console.log('🎨 Agregando representación cartoon...');
+          component.addRepresentation("cartoon", {
+            color: "chainid"
+          });
+          console.log('✅ Representación cartoon agregada');
+          
+          // Agregar ball+stick para heteroátomos
+          console.log('🎨 Agregando ball+stick para heteroátomos...');
+          component.addRepresentation("ball+stick", {
+            sele: "hetero"
+          });
+          console.log('✅ Representación ball+stick agregada');
+          
+          console.log('🎬 Ajustando vista automática...');
+          component.autoView();
+          
+          // Forzar actualización del stage
+          setTimeout(function() {
+            console.log('🔄 Finalizando carga del modelo mutado...');
+            concludeLoading('✅ Modelo mutado cargado y visible');
+            console.log('🧪 Canvas presentes tras cargar mutado:', $('#protein-viewer canvas').length);
+          }, 100);
+          
+        } catch (renderError) {
+          console.error('❌ Error durante el renderizado:', renderError);
+          console.error('Stack trace:', renderError.stack);
+          $('#loading-message').hide();
+          loaderHidden = true;
+          if (loaderTimeout) {
+            clearTimeout(loaderTimeout);
+            loaderTimeout = null;
+          }
+          showError('Error al renderizar el modelo: ' + renderError.message);
+        }
       }).catch(function (error) {
+        console.error('❌ Error cargando modelo mutado:', error);
+        console.error('URL intentada:', mutatedModelUrl);
+        console.error('Detalles del error:', error);
+        $('#loading-message').hide();
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
+        }
         showError('No se pudo cargar el modelo mutado: ' + error.message);
       });
     }
 
     // Función para cargar ambos modelos
     function loadBothModels() {
-      if (!originalModelUrl || !mutatedModelUrl) return;
-
+      if (!originalModelUrl || !mutatedModelUrl) {
+        console.warn('⚠️ No hay URLs para ambos modelos');
+        $('#loading-message').hide();
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
+        }
+        return;
+      }
+      console.log('🔄 Cargando ambos modelos para comparación...');
+      console.log('Original URL:', originalModelUrl);
+      console.log('Mutated URL:', mutatedModelUrl);
+      
+      // Mostrar mensaje de carga ANTES de limpiar
+      $('#loading-message')
+        .css({ display: 'flex', 'pointer-events': 'auto' })
+        .show();
+      $('#loading-status').text('Preparando comparación...');
+      loaderHidden = false;
+      scheduleLoaderTimeout();
+      
+      // Limpiar componentes existentes
       clearComponents();
+      
+      // Actualizar estado
+      $('#loading-status').text('Descargando modelo original...');
 
       // NGL inferirá el formato desde la URL y los headers
       stage.loadFile(originalModelUrl).then(function (component) {
+        console.log('📦 Modelo original descargado');
+        $('#loading-status').text('Descargando modelo mutado...');
+        
         currentComponents.push(component);
         try {
           component.addRepresentation("cartoon", {
@@ -662,6 +824,9 @@
         // Cargar modelo mutado
         return stage.loadFile(mutatedModelUrl);
       }).then(function (component) {
+        console.log('📦 Modelo mutado descargado, renderizando...');
+        $('#loading-status').text('Renderizando ambos modelos...');
+        
         currentComponents.push(component);
         try {
           component.addRepresentation("cartoon", {
@@ -680,19 +845,28 @@
           sele: "hetero",
           color: "element"
         });
+        
+        console.log('🎬 Ajustando vista automática para ambos modelos...');
         stage.autoView();
-
-        // SOLUCIÓN DRÁSTICA: Eliminar completamente el loading-message
-        const loadingElement = document.getElementById('loading-message');
-        if (loadingElement) {
-          loadingElement.remove();
-          console.log('🔄 Loading element completely removed from DOM (both models)');
-        }
-
-        console.log('✅ Ambos modelos cargados para comparación');
+        
+        // Forzar actualización del stage
+        setTimeout(function() {
+          console.log('🔄 Finalizando carga de ambos modelos...');
+          concludeLoading('✅ Ambos modelos cargados y visibles');
+          console.log('👁️ Canvas presentes tras cargar ambos:', $('#protein-viewer canvas').length);
+        }, 100);
       }).catch(function (error) {
         console.error('❌ Error cargando modelos para comparación:', error);
-        showError('No se pudieron cargar los modelos para comparación');
+        console.error('Original URL:', originalModelUrl);
+        console.error('Mutated URL:', mutatedModelUrl);
+        console.error('Detalles del error:', error);
+        $('#loading-message').hide();
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
+        }
+        showError('No se pudieron cargar los modelos para comparación: ' + error.message);
       });
     }
 
@@ -701,34 +875,57 @@
     $('#load-mutated').click(loadMutatedModel);
     $('#load-both').click(loadBothModels);
     $('#reset-view').click(function () {
-      if (stage) {
+      console.log('🔄 Reset view clicked');
+      if (stage && currentComponents.length > 0) {
+        console.log('✅ Resetting view for', currentComponents.length, 'components');
+        // Resetear la vista para todos los componentes cargados
         stage.autoView();
+      } else if (stage) {
+        console.warn('⚠️ Stage exists but no components tracked');
+        stage.autoView();
+      } else {
+        console.error('❌ No stage available for reset');
       }
     });
 
-    // Inicializar NGL cuando esté disponible
-    console.log('🔍 Checking NGL availability...');
-    console.log('NGL type:', typeof NGL);
-    console.log('jQuery available:', typeof $ !== 'undefined');
-
-    if (typeof NGL !== 'undefined') {
-      console.log('✅ NGL is available, initializing...');
-      initializeNGL();
-    } else {
-      console.log('⏳ NGL not ready, waiting...');
-      // Esperar a que se cargue la librería
-      setTimeout(function () {
-        console.log('🔍 Rechecking NGL after timeout...');
-        console.log('NGL type:', typeof NGL);
-        if (typeof NGL !== 'undefined') {
-          console.log('✅ NGL loaded after timeout, initializing...');
-          initializeNGL();
-        } else {
-          console.error('❌ NGL still not available after timeout');
-          showError('No se pudo cargar la librería NGL Viewer');
+    // Función mejorada para esperar a que NGL esté disponible
+    function waitForNGL(attempts = 0, maxAttempts = 20) {
+      console.log(`🔍 Checking NGL availability (attempt ${attempts + 1}/${maxAttempts})...`);
+      
+      // Actualizar mensaje de estado
+      const statusElement = $('#loading-status');
+      if (attempts === 0) {
+        statusElement.text('Descargando librería NGL Viewer...');
+      } else if (attempts < 5) {
+        statusElement.text('Inicializando componentes 3D...');
+      } else {
+        statusElement.text(`Esperando carga completa (${attempts}/${maxAttempts})...`);
+      }
+      
+      if (typeof NGL !== 'undefined') {
+        console.log('✅ NGL is available, initializing...');
+        statusElement.text('¡Librería cargada! Preparando visualizador...');
+        setTimeout(initializeNGL, 100); // Small delay to ensure everything is ready
+      } else if (attempts < maxAttempts) {
+        console.log('⏳ NGL not ready, waiting 200ms...');
+        setTimeout(function() {
+          waitForNGL(attempts + 1, maxAttempts);
+        }, 200);
+      } else {
+        console.error('❌ NGL not available after maximum attempts');
+        showError('No se pudo cargar la librería NGL Viewer. Verifica tu conexión a internet.');
+        $('#loading-message').hide();
+        loaderHidden = true;
+        if (loaderTimeout) {
+          clearTimeout(loaderTimeout);
+          loaderTimeout = null;
         }
-      }, 2000); // Increased timeout to 2 seconds
+      }
     }
+
+    // Iniciar la espera por NGL
+    console.log('🚀 Starting NGL load wait...');
+    waitForNGL();
 
     console.log('SwissModel results page loaded for comparison {{ comparison_id }}');
   });

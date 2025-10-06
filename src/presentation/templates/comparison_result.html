@@ -7,20 +7,18 @@
   <div class="col-lg-10 mx-auto">
     <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="text-primary">
-        <i class="fas fa-chart-line me-2"></i>
-        Resultado de la Comparación
+      <h2 style="font-weight: 600; color: var(--primary-color);">
+        Resultados de la Comparación
       </h2>
       <a href="{{ url_for('main.index') }}" class="btn btn-outline-primary">
-        <i class="fas fa-plus me-2"></i>Nueva Comparación
+        Nueva Comparación
       </a>
     </div>
 
     <!-- Comparison Info Card -->
     <div class="card mb-4">
-      <div class="card-header bg-primary text-white">
+      <div class="card-header">
         <h5 class="card-title mb-0">
-          <i class="fas fa-info-circle me-2"></i>
           Información de la Comparación
         </h5>
       </div>
@@ -36,7 +34,7 @@
               }}</p>
             <p><strong>Longitud:</strong> {{ details.comparison.sequence_length }} aminoácidos</p>
             <p><strong>Estado:</strong>
-              <span class="badge bg-success">{{ details.comparison.status.title() }}</span>
+              <span class="badge" style="background-color: var(--success-color);">{{ details.comparison.status.title() }}</span>
             </p>
           </div>
         </div>
@@ -51,20 +49,20 @@
         details.comparison.original_prediction_url or details.comparison.mutated_prediction_url or
         details.comparison.original_confidence_score is not none or details.comparison.mutated_confidence_score is not
         none %}
-        <div class="mt-3 p-3 bg-light rounded">
-          <h6 class="text-primary">🧬 Predicciones de Estructura 3D Disponibles (Swiss-Model)</h6>
-          <p class="text-muted mb-2">Esta comparación incluye modelos 3D predichos para ambas secuencias</p>
+        <div class="mt-3 p-3 border rounded">
+          <h6 style="font-weight: 600;">Predicciones de Estructura 3D Disponibles (SwissModel)</h6>
+          <p class="text-muted mb-2" style="font-size: 0.95rem;">Esta comparación incluye modelos 3D predichos para ambas secuencias</p>
           <a href="{{ url_for('main.swissmodel_results', comparison_id=details.comparison.id) }}"
             class="btn btn-primary btn-sm">
-            <i class="fas fa-cube me-2"></i>Ver Modelos 3D Interactivos
+            Ver Modelos 3D Interactivos
           </a>
           {% if details.comparison.original_confidence_score %}
-          <span class="badge bg-info ms-2">
+          <span class="badge bg-secondary ms-2">
             Confianza Original: {{ "%.1f"|format(details.comparison.original_confidence_score) }}%
           </span>
           {% endif %}
           {% if details.comparison.mutated_confidence_score %}
-          <span class="badge bg-warning ms-2">
+          <span class="badge bg-secondary ms-2">
             Confianza Mutada: {{ "%.1f"|format(details.comparison.mutated_confidence_score) }}%
           </span>
           {% endif %}
@@ -75,18 +73,16 @@
 
     <!-- Mutations Analysis Card -->
     <div class="card mb-4">
-      <div class="card-header bg-warning text-dark">
+      <div class="card-header">
         <h5 class="card-title mb-0">
-          <i class="fas fa-dna me-2"></i>
           Análisis de Mutaciones
         </h5>
       </div>
       <div class="card-body">
         <div class="row">
           <div class="col-md-12">
-            <div class="alert alert-info">
-              <h6 class="alert-heading">
-                <i class="fas fa-exclamation-circle me-2"></i>
+            <div class="alert alert-secondary" style="border-left: 4px solid var(--primary-color);">
+              <h6 class="alert-heading" style="font-weight: 600;">
                 Resumen de Mutaciones
               </h6>
               <p class="mb-2">
@@ -108,23 +104,23 @@
         <div class="row">
           {% for mutation in details.mutations_analysis.mutations %}
           <div class="col-md-6 mb-3">
-            <div class="card border-warning">
+            <div class="card" style="border-left: 4px solid #7f8c8d;">
               <div class="card-body">
-                <h6 class="card-title text-warning">
+                <h6 class="card-title" style="color: var(--primary-color); font-weight: 600;">
                   Posición {{ mutation.position }}
                 </h6>
                 <p class="card-text">
                   <strong>Cambio:</strong>
-                  <span class="text-success">{{ mutation.original_amino_acid }}</span>
-                  <i class="fas fa-arrow-right mx-2"></i>
-                  <span class="text-danger">{{ mutation.mutated_amino_acid }}</span>
+                  <span style="color: #16a085; font-weight: 600;">{{ mutation.original_amino_acid }}</span>
+                  →
+                  <span style="color: #c0392b; font-weight: 600;">{{ mutation.mutated_amino_acid }}</span>
                 </p>
                 <p class="card-text">
                   <small class="text-muted">
                     {{ mutation.original_name }} → {{ mutation.mutated_name }}
                   </small>
                 </p>
-                <span class="badge bg-warning text-dark">{{ mutation.mutation_notation }}</span>
+                <span class="badge" style="background-color: #34495e; color: white;">{{ mutation.mutation_notation }}</span>
               </div>
             </div>
           </div>
@@ -138,29 +134,26 @@
     <div class="card mb-4">
       <div class="card-header">
         <h5 class="card-title mb-0">
-          <i class="fas fa-code me-2"></i>
           Comparación de Secuencias
         </h5>
       </div>
       <div class="card-body">
         <div class="row">
           <div class="col-md-6">
-            <h6 class="text-success">
-              <i class="fas fa-file-alt me-2"></i>
+            <h6 style="color: #16a085; font-weight: 600;">
               Secuencia Original
             </h6>
-            <div class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
-              <code class="text-success d-block"
+            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+              <code class="d-block" style="color: #16a085;"
                 style="white-space: pre-wrap; word-break: break-all;">{{ details.comparison.original_sequence }}</code>
             </div>
           </div>
           <div class="col-md-6">
-            <h6 class="text-warning">
-              <i class="fas fa-file-alt me-2"></i>
+            <h6 style="color: #e67e22; font-weight: 600;">
               Secuencia Mutada
             </h6>
-            <div class="border rounded p-3 bg-light" style="max-height: 300px; overflow-y: auto;">
-              <code class="text-warning d-block"
+            <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+              <code class="d-block" style="color: #e67e22;"
                 style="white-space: pre-wrap; word-break: break-all;">{{ details.comparison.mutated_sequence }}</code>
             </div>
           </div>

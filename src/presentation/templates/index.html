@@ -6,26 +6,24 @@
 <div class="row">
   <div class="col-lg-8 mx-auto">
     <!-- Header -->
-    <div class="text-center mb-5">
-      <h1 class="display-4 text-primary">
-        <i class="fas fa-dna me-3"></i>
-        Comparador de Proteínas
+    <div class="mb-5">
+      <h1 class="mb-3" style="font-weight: 600; color: var(--primary-color);">
+        Comparación de Secuencias de Proteínas
       </h1>
-      <p class="lead text-muted">
-        Compara secuencias de proteínas y analiza mutaciones usando SwissModel
+      <p class="text-muted" style="font-size: 1.1rem;">
+        Compare secuencias de proteínas y analice mutaciones usando modelado estructural
       </p>
     </div>
 
     <!-- Instructions Card -->
-    <div class="card mb-4 border-info">
-      <div class="card-header bg-info text-white">
+    <div class="card mb-4">
+      <div class="card-header">
         <h5 class="card-title mb-0">
-          <i class="fas fa-info-circle me-2"></i>
           Instrucciones
         </h5>
       </div>
       <div class="card-body">
-        <ul class="mb-0">
+        <ul class="mb-0" style="line-height: 1.8;">
           <li>Ingrese dos secuencias de proteínas (original y mutada)</li>
           <li>Las secuencias deben tener la <strong>misma longitud</strong></li>
           <li>Máximo <strong>2 diferencias</strong> entre las secuencias</li>
@@ -36,10 +34,9 @@
     </div>
 
     <!-- Main Form -->
-    <div class="card shadow">
+    <div class="card">
       <div class="card-header">
-        <h3 class="card-title mb-0">
-          <i class="fas fa-microscope me-2"></i>
+        <h3 class="card-title mb-0" style="font-size: 1.25rem;">
           Nueva Comparación
         </h3>
       </div>
@@ -98,7 +95,7 @@
           <div class="row">
             <div class="col-md-6">
               <div class="form-group mb-3">
-                {{ form.original_sequence.label(class="form-label fw-bold text-success") }}
+                {{ form.original_sequence.label(class="form-label fw-bold") }}
                 {{ form.original_sequence(class="form-control font-monospace" + (" is-invalid" if
                 form.original_sequence.errors else ""), id="originalSequence") }}
                 {% if form.original_sequence.errors %}
@@ -115,7 +112,7 @@
             </div>
             <div class="col-md-6">
               <div class="form-group mb-3">
-                {{ form.mutated_sequence.label(class="form-label fw-bold text-warning") }}
+                {{ form.mutated_sequence.label(class="form-label fw-bold") }}
                 {{ form.mutated_sequence(class="form-control font-monospace" + (" is-invalid" if
                 form.mutated_sequence.errors else ""), id="mutatedSequence") }}
                 {% if form.mutated_sequence.errors %}
@@ -135,25 +132,24 @@
           <!-- Swiss-Model 3D Prediction Option -->
           <div class="row mb-4">
             <div class="col-md-12">
-              <div class="card bg-light">
+              <div class="card">
                 <div class="card-body">
-                  <h5 class="card-title text-primary">🧬 Predicción de Estructura 3D con Swiss-Model</h5>
+                  <h5 class="card-title" style="font-weight: 600;">Predicción de Estructura 3D con SwissModel</h5>
                   <div class="form-check">
                     {{ form.swiss_model(class="form-check-input", id="swissModelCheck") }}
                     {{ form.swiss_model.label(class="form-check-label", for="swissModelCheck") }}
                   </div>
                   <div class="form-text">
                     <small class="text-muted">
-                      <i class="fas fa-info-circle me-1"></i>
-                      Incluir predicción de estructura 3D usando Swiss-Model para ambas secuencias.
+                      Incluir predicción de estructura 3D usando SwissModel para ambas secuencias.
                       Esto proporcionará modelos 3D interactivos y análisis estructural comparativo.
                     </small>
                   </div>
-                  <div id="swissModelInfo" class="alert alert-info mt-2" style="display: none;">
-                    <strong>📊 Análisis 3D incluido con Swiss-Model:</strong>
-                    <ul class="mb-0 mt-2">
+                  <div id="swissModelInfo" class="alert alert-secondary mt-2" style="display: none;">
+                    <strong>Análisis 3D incluido con SwissModel:</strong>
+                    <ul class="mb-0 mt-2" style="font-size: 0.9rem;">
                       <li>Predicción de estructura 3D para ambas secuencias (original y mutada)</li>
-                      <li>Análisis de confianza (GMQE/QMEAN scores)</li>
+                      <li>Análisis de confianza (puntuaciones GMQE/QMEAN)</li>
                       <li>Cálculo de RMSD entre estructuras</li>
                       <li>Evaluación del impacto estructural de las mutaciones</li>
                       <li>Visualización 3D interactiva con NGL Viewer</li>
@@ -175,16 +171,13 @@
         </form>
 
         <!-- Progress Bar (hidden by default) -->
-        <div id="progressContainer" class="mt-4" style="display: none;">
+          <div id="progressContainer" class="mt-4" style="display: none;">
           <div class="card">
             <div class="card-body text-center">
-              <h5 class="card-title text-primary">
-                <i class="fas fa-dna fa-spin me-2"></i>
+              <h5 class="card-title" style="color: var(--primary-color);">
                 Analizando Proteínas...
               </h5>
-              <p class="text-muted mb-3">Comparando secuencias</p>
-
-              <div class="progress mb-3" style="height: 25px;">
+              <p class="text-muted mb-3">Comparando secuencias</p>              <div class="progress mb-3" style="height: 25px;">
                 <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
                   role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                   <span id="progressText">0%</span>
