@@ -20,3 +20,8 @@ biopython>=1.84
 
 # Cálculo numérico - requerido para consenso y métricas estructurales
 numpy>=1.26,<3.0
+
+# Modeller - Para mutaciones de alta precisión (requiere licencia académica)
+# NOTA: Instalar con conda: conda install -c salilab modeller
+# O desde: https://salilab.org/modeller/download_installation.html
+# modeller (instalación manual requerida)

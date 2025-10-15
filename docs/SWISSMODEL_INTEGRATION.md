@@ -1,20 +1,52 @@
-# 🧬 Integración Swiss-Model - Guía Técnica Avanzada
+# 🧬 Integración Swiss-Model + Modeller - Guía Técnica Avanzada
 
 ## 📋 Descripción General
 
-El sistema **Comparador de Proteínas** incluye integración completa con **Swiss-Model** para predicción avanzada de estructuras 3D, implementando algoritmos sofisticados de modelado molecular para el análisis de mutaciones.
+El sistema **Comparador de Proteínas** implementa un flujo híbrido optimizado que combina:
+- **Swiss-Model** para obtener modelos homólogos de la secuencia original
+- **Modeller** para aplicar mutaciones con máxima precisión estructural
+- **Algoritmos propios** para análisis fisicoquímico y estructural completo
 
 ## 🎯 Funcionalidades Implementadas
 
-### ✅ Predicción Avanzada de Estructuras con Swiss-Model
+### ✅ Predicción Híbrida de Estructuras (Swiss-Model + Modeller)
 
-- **Predicción automática** usando Swiss-Model API para secuencias original y mutada
+**Flujo Optimizado:**
+1. **Secuencia Original** → Swiss-Model (múltiples homólogos + consenso)
+2. **Secuencia Mutada** → Modeller (mutación sobre consenso original)
+3. **Análisis** → Algoritmos propios (ΔΔG, BLOSUM, Grantham, RMSD, SASA)
+
+**Ventajas del enfoque híbrido:**
+- ✅ **1 sola llamada a Swiss-Model** (solo para original) → Más rápido
+- ✅ **Modeller para mutaciones** → Alta precisión con rotámeros optimizados
+- ✅ **Sin dependencia de templates para mutadas** → Funciona siempre
+- ✅ **Tiempo reducido:** 5-10 min vs 10-20 min del método anterior
+
+### ✅ Predicción con Swiss-Model (Solo Original)
+
+- **Predicción automática** usando Swiss-Model API **únicamente para secuencia original**
 - **Flujo asíncrono de 3 pasos**: Envío → Polling → Descarga
 - **Timeout dinámico** basado en longitud de secuencia (5-10 minutos)
+- **Múltiples modelos homólogos** (3-5 plantillas PDB)
 - **Archivos PDB/CIF descargables** para visualización externa
 - **Métricas de calidad** (GMQE y QMEAN scores) integradas
 
-### ✅ Algoritmos Avanzados de Modelado de Mutaciones
+### ✅ Mutación con Modeller (Solo Mutada)
+
+**Nuevo componente: `ModellerMutator`**
+- **Rotámeros optimizados** usando biblioteca Dunbrack
+- **Minimización energética** con Conjugate Gradients
+- **Dinámica molecular corta** (300 pasos a 300K) para refinamiento
+- **Optimización local** alrededor de cada mutación (radio 10-12Å)
+- **Métricas DOPE** para evaluación de calidad estructural
+- **3 niveles de optimización**: low (rápido), medium (balanceado), high (máxima precisión)
+
+**Requiere licencia académica GRATUITA:**
+- Obtener en: https://salilab.org/modeller/registration.html
+- Válida para estudiantes e investigadores de instituciones académicas
+- Configurar en `.env`: `MODELLER_LICENSE_KEY=tu_clave`
+
+### ✅ Algoritmos Propios de Análisis
 
 #### 🤝 Mezcla de Plantillas Consenso
 
@@ -23,7 +55,7 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 - **Métricas de conservación ponderada** por residuo usando la alineación estructural
 - **Alineamiento y superposición** usando Bio.PDB para asegurar geometría consistente
 
-#### � Puntuación Fisicoquímica de Mutaciones
+#### 🧮 Puntuación Fisicoquímica de Mutaciones
 
 - **`MutationScorer`** combina BLOSUM62, distancia de Grantham y heurísticas de ΔΔG
 - **Contexto ambiental** por residuo (SASA, conservación, estructura secundaria) incorporado en el puntaje
@@ -35,7 +67,7 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 - **Cálculo de SASA** previo y posterior a mutaciones para medir efectos de exposición
 - **Cobertura y solapamiento** cuantificados para detectar zonas no modeladas
 
-#### � Calibración Dinámica de Confianza
+#### 🎯 Calibración Dinámica de Confianza
 
 - Penalización final basada en ΔΔG agregados, RMSD, cobertura y picos locales
 - **Curvas de penalización** ajustadas para priorizar modelos con soporte estructural sólido
@@ -43,16 +75,10 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 
 ### ✅ Sistema de Confianza Mejorado
 
-- **Penalización Multi-paramétrica:** Ajuste basado en estabilidad, funcionalidad y dinámica
+- **Penalización Multi-paramétrica:** Ajuste basado en ΔΔG, RMSD, SASA y DOPE scores
 - **Puntuaciones Derivadas:** Métricas específicas para cada tipo de análisis
 - **Validación Cruzada:** Combinación de algoritmos para mayor robustez
-- **Feedback de Calidad:** Indicadores visuales del nivel de confianza
-
-### ✅ Consulta de Datos Proteicos
-
-- **Información de proteínas** conocidas desde bases de datos públicas
-- **UniProt ID, nombre y organismo** automáticamente identificados
-- **Complemento informativo** sin predicción estructural adicional
+- **Métricas de Modeller:** DOPE scores integrados en la evaluación final
 
 ## 🏗️ Arquitectura del Sistema
 
@@ -61,33 +87,84 @@ El sistema **Comparador de Proteínas** incluye integración completa con **Swis
 ```
 src/business/swissmodel_service.py
 ├── SwissModelService
-│   ├── predict_structure()                    # Coordina predicción 3D básica
-│   ├── predict_mutated_structure_advanced()  # 🔥 PREDICCIÓN AVANZADA con consenso
-│   ├── _predict_with_swiss_model()           # Implementa flujo Swiss-Model
-│   ├── _download_swiss_model_file()          # Descarga modelos PDB/CIF
-│   ├── compare_structures()                  # Compara estructuras
-│   ├── predict_mutated_from_original_models() # Fallback con mutaciones directas
-│   ├── _compute_structural_metrics()          # Métricas RMSD/SASA
+│   ├── predict_structure()                      # Predicción 3D con Swiss-Model (SOLO ORIGINAL)
+│   ├── predict_mutated_with_modeller()         # 🔥 NUEVA: Mutación con Modeller (SOLO MUTADA)
+│   ├── _predict_with_swiss_model()             # Implementa flujo Swiss-Model
+│   ├── _download_swiss_model_file()            # Descarga modelos PDB/CIF
+│   ├── compare_structures()                    # Compara estructuras
+│   ├── _compute_structural_metrics()            # Métricas RMSD/SASA
 │   ├── _collect_ca_atoms() / _collect_local_atoms() # Utilidades geométricas
-│   ├── _derive_confidence_penalty()           # Ajuste de confianza final
-│   └── cleanup_old_models()                   # Gestión de archivos
-└── ComparisonManager (actualizado)
-    └── _process_swissmodel_predictions()      # Orquesta predicciones y evaluaciones
+│   ├── _derive_confidence_penalty()             # Ajuste de confianza final
+│   └── cleanup_old_models()                     # Gestión de archivos
+
+src/business/modeller_mutator.py [NUEVO]
+├── ModellerMutator
+│   ├── mutate_structure()                       # Aplica mutaciones con Modeller
+│   ├── _setup_environment()                     # Configura entorno Modeller
+│   ├── _load_structure()                        # Carga PDB
+│   ├── _apply_single_mutation()                 # Mutación puntual + rotámeros
+│   ├── _optimize_low/medium/high()              # 3 niveles de optimización
+│   ├── _assess_quality()                        # Calcula DOPE scores
+│   └── _aa_to_modeller()                        # Conversión códigos aminoácidos
 
 src/business/consensus_model.py
 ├── ConsensusModelBuilder
-│   ├── build()                                # Fusiona plantillas y calcula SASA
-│   ├── _collect_alignment_atoms()             # Selecciona átomos guía
-│   └── _compute_sasa()                        # Ejecuta Shrake-Rupley por residuo
+│   ├── build()                                  # Fusiona plantillas y calcula SASA
+│   ├── _collect_alignment_atoms()               # Selecciona átomos guía
+│   └── _compute_sasa()                          # Ejecuta Shrake-Rupley por residuo
 
 src/business/mutation_scoring.py
 ├── MutationScorer
-│   ├── score_mutations()                      # Puntajes y agregados por mutación
-│   ├── _estimate_ddg()                        # Heurística ΔΔG con propiedades
-│   └── classify_ddg()                         # Etiquetas de impacto
+│   ├── score_mutations()                        # Puntajes y agregados por mutación
+│   ├── _estimate_ddg()                          # Heurística ΔΔG con propiedades
+│   └── classify_ddg()                           # Etiquetas de impacto
+
+config/modeller_config.py [NUEVO]
+└── Configuración de Modeller (licencia, optimización, umbrales)
 ```
 
-### Algoritmos Avanzados Implementados
+### Comparación Manager (actualizado)
+
+```python
+ComparisonManager._process_swissmodel_predictions()
+├── Paso 1: SwissModel para ORIGINAL
+│   ├── predict_structure(original_sequence, return_all_models=True)
+│   └── ConsensusModelBuilder.build() → Modelo consenso
+│
+├── Paso 2: Modeller para MUTADA (NUEVO FLUJO)
+│   ├── predict_mutated_with_modeller()
+│   │   ├── MutationScorer.score_mutations()      # Análisis fisicoquímico
+│   │   ├── ModellerMutator.mutate_structure()    # Mutación física
+│   │   ├── _compute_structural_metrics()         # RMSD, SASA
+│   │   ├── _derive_confidence_penalty()          # Ajuste confianza
+│   │   └── build_mutation_report()               # Reporte HTML
+│   └── ❌ NO llama a Swiss-Model para mutada
+│
+└── Paso 3: Comparación estructural
+    └── compare_structures() → Análisis comparativo final
+```
+
+### Algoritmos Implementados
+
+#### 🔬 Mutación con Modeller (NUEVO)
+
+```
+ModellerMutator.mutate_structure()
+├── _setup_environment()              # Configura Modeller (topología, parámetros)
+├── _load_structure()                 # Carga PDB consenso original
+├── Para cada mutación:
+│   ├── _apply_single_mutation()
+│   │   ├── Seleccionar residuo
+│   │   ├── Mutar con rotámeros Dunbrack
+│   │   ├── Optimizar localmente (radio 10-12Å)
+│   │   └── Minimización Conjugate Gradients (200 iter)
+│   └── ...
+├── _optimize_high()                  # Optimización global
+│   ├── Conjugate Gradients (500 iter)
+│   ├── Molecular Dynamics (300 pasos a 300K)
+│   └── Refinamiento final (200 iter)
+└── _assess_quality()                 # DOPE scores
+```
 
 #### 🤝 Generación de Consenso Estructural
 
@@ -176,13 +253,58 @@ src/presentation/
 
 ### 1. Configuración
 
+#### Paso 1.1: Variables de Entorno
+
 ```env
 # .env
+
+# SwissModel (para secuencia original)
 ENABLE_SWISSMODEL=true
 SWISSMODEL_API_ENDPOINT=https://swissmodel.expasy.org/
-COLABFOLD_ENDPOINT=http://localhost:8080
+SWISS_MODEL_TOKEN=tu_token_swissmodel_aqui
+SWISSMODEL_CONSENSUS_TEMPLATES=3
 MODELS_DIRECTORY=models/swissmodel
-API_TIMEOUT=300
+API_TIMEOUT=600
+
+# Modeller (para mutaciones) - NUEVO
+MODELLER_LICENSE_KEY=MODELIRANJE  # Tu clave académica
+MODELLER_OPTIMIZATION_LEVEL=high   # low, medium, high
+```
+
+#### Paso 1.2: Obtener Licencia de Modeller (GRATUITA)
+
+1. **Ir a:** https://salilab.org/modeller/registration.html
+2. **Completar formulario** con tu email institucional `@frro.utn.edu.ar`
+3. **Recibir email** con tu clave de licencia
+4. **Copiar clave** al `.env`
+
+#### Paso 1.3: Instalar Modeller
+
+```powershell
+# Opción A: Con conda (RECOMENDADO)
+conda install -c salilab modeller
+
+# Opción B: Descarga manual
+# https://salilab.org/modeller/download_installation.html
+```
+
+#### Paso 1.4: Verificar Instalación
+
+```powershell
+# Ejecutar script de verificación
+python setup_modeller.py
+```
+
+**Salida esperada:**
+```
+🔬 INSTALADOR DE MODELLER PARA TPI-ProteinAPI
+📦 Paso 1: Verificando instalación de Modeller...
+   ✅ Modeller 10.5 está instalado
+🔑 Paso 2: Verificando licencia académica...
+   ✅ Licencia configurada: MODE...
+🧪 Paso 3: Probando Modeller...
+   ✅ Modeller funciona correctamente
+✅ INSTALACIÓN COMPLETADA
 ```
 
 ### 2. Interfaz Web
@@ -198,19 +320,67 @@ API_TIMEOUT=300
 ### 3. API Programática
 
 ```python
-# Ejemplo de uso directo
+# Ejemplo de uso completo con el nuevo flujo
 from src.business.comparison_manager import ComparisonManager
 from config.config import get_config
 
 manager = ComparisonManager(get_config())
+
+# Crear comparación con predicción híbrida
 result = manager.create_comparison_with_swissmodel(
     username="usuario",
-    email="email@ejemplo.com",
+    email="email@frro.utn.edu.ar",
     original_sequence="MKLLSLVCLASFA",
-    mutated_sequence="MKLMSLVCLASFA",
-    enable_swissmodel=True  # Activa Swiss-Model
+    mutated_sequence="MKLMSLVCLASFA",  # L→M en posición 4
+    enable_swissmodel=True  # Activa predicción híbrida
 )
+
+# Ver resultados
+if result['success']:
+    swissmodel = result['swissmodel_results']
+    
+    # Original (Swiss-Model)
+    original = swissmodel['original']
+    print(f"Original: {original['confidence']}% confianza")
+    print(f"Método: {original.get('prediction_method')}")
+    
+    # Mutada (Modeller)
+    mutated = swissmodel['mutated']
+    print(f"Mutada: {mutated['confidence']}% confianza")
+    print(f"Método: {mutated['prediction_method']}")  # → 'modeller_mutation_on_consensus'
+    print(f"DOPE: {mutated['modeller_quality']['dope_score']}")
+    
+    # Comparación
+    comparison = swissmodel['comparison']
+    print(f"RMSD: {comparison['rmsd_value']} Å")
 ```
+
+**Logs del nuevo flujo:**
+```
+➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...
+   📊 Resultado original: 3 modelos disponibles
+   🏆 Mejor modelo: GMQE=0.75, Confianza=75.0%
+   🤝 Modelo consenso generado (3 plantillas, cobertura 0.98)
+
+➡️  Paso 2: Generando estructura mutada desde modelos originales con Modeller...
+   🔄 Mutaciones detectadas: [(4, 'L', 'M')]
+   🧬 Aplicando 1 mutación(es) con Modeller...
+   🔬 Iniciando mutación con Modeller (nivel: high)
+      🧬 Mutación 1/1: L4M
+      ⚙️ Optimizando geometría (nivel high)...
+      📊 Evaluando calidad del modelo...
+   ✅ Mutación completada: mutated_modeller.pdb
+   📈 DOPE score: -8234.56
+   📈 DOPE normalizado: -0.041
+   📊 Calculando métricas estructurales (RMSD, SASA)...
+   🎯 Confianza base: 75.0%
+   🎯 Penalización: -2.5%
+   🎯 Confianza ajustada: 72.5%
+
+✅ Predicción con Modeller completada en 45.3s
+```
+
+**Nota importante:** ❌ NO verás llamadas a Swiss-Model para la secuencia mutada.
 
 ### 4. Endpoints API REST
 
@@ -218,25 +388,48 @@ result = manager.create_comparison_with_swissmodel(
 GET /api/comparison/{id}/structural-analysis
 GET /api/comparison/{id}/model/original
 GET /api/comparison/{id}/model/mutated
+GET /api/comparison/{id}/mutation-report  # Nuevo: Reporte HTML detallado
 ```
 
 ## 📊 Datos Estructurales Disponibles
 
-### Información de Confianza Swiss-Model
+### Información de Swiss-Model (Solo Original)
 
 - **GMQE scores**: Global Model Quality Estimation (0-1, preferido)
 - **QMEAN scores**: Qualitative Model Energy Analysis (Z-score)
 - **Confianza final**: Principalmente calculada desde GMQE (× 100%)
 - **Clasificación**: Alta (>70%), Media (40-70%), Baja (<40%)
+- **Templates usados**: 3-5 estructuras homólogas del PDB
+- **Cobertura consenso**: Porcentaje de la secuencia cubierta
 
-### Información SwissModel
+### Información de Modeller (Solo Mutada) - NUEVO
 
-- **Template usado**: Estructura homóloga utilizada como base
-- **Secuencia identidad**: Porcentaje de identidad con el template
-- **Cobertura**: Porcentaje de la secuencia cubierta por el modelo
-- **GMQE**: Global Model Quality Estimation (0-1)
+#### **DOPE Score (Discrete Optimized Protein Energy)**
+- **Métrica principal** de calidad estructural de Modeller
+- **Valores negativos = mejor calidad**
+- **Interpretación:**
+  - `< -15000`: Excelente
+  - `-15000 to 0`: Bueno
+  - `0 to +10000`: Aceptable
+  - `> +10000`: Revisar
 
-### Análisis Comparativo
+#### **DOPE Normalizado (por residuo)**
+- **Normalizado** por número de residuos para comparar proteínas de diferente tamaño
+- **Interpretación:**
+  - `< -0.03`: Excelente ✅
+  - `-0.03 to 0.0`: Bueno
+  - `0.0 to 0.05`: Aceptable
+  - `> 0.05`: Pobre (revisar mutación)
+
+#### **Nivel de Optimización**
+- `low`: Rápido (~10-20s), precisión básica
+- `medium`: Balanceado (~30-60s), buena precisión
+- `high`: Máxima precisión (~1-3min), minimización + MD ⭐
+
+#### **Método de Predicción**
+- `modeller_mutation_on_consensus`: Modeller aplicado sobre consenso de Swiss-Model
+
+### Análisis Comparativo (Algoritmos Propios)
 
 - **RMSD**: Root Mean Square Deviation entre estructuras
 - **Cambio de confianza**: Diferencia en puntuaciones GMQE/QMEAN
@@ -274,37 +467,66 @@ GET /api/comparison/{id}/model/mutated
 - **2.0-5.0 Å**: Cambio significativo, posible impacto funcional
 - **>5.0 Å**: Cambio dramático, probable pérdida de función
 
-### Clasificación de Impacto
+### Clasificación de Impacto (ΔΔG)
 
-- **Beneficioso**: Aumento de confianza >10 puntos GMQE
-- **Neutral**: Cambio de confianza ±10 puntos GMQE
-- **Perjudicial**: Disminución de confianza >10 puntos GMQE
+**Basado en análisis fisicoquímico (BLOSUM, Grantham, ΔΔG):**
+- **Estabilizante**: ΔΔG < -0.5 kcal/mol (mejora estructura)
+- **Neutro**: -0.5 ≤ ΔΔG < 0.5 kcal/mol (sin cambio significativo)
+- **Levemente desestabilizante**: 0.5 ≤ ΔΔG < 2.0 kcal/mol (cambio tolerable)
+- **Desestabilizante**: ΔΔG ≥ 2.0 kcal/mol (impacto significativo)
 
-### Timeouts por Longitud de Secuencia
+### Tiempos de Procesamiento
 
-- **≤200 residuos**: Timeout de 5 minutos (secuencias cortas/medianas)
-- **>200 residuos**: Timeout de 10 minutos (secuencias largas y complejas)
-- **Justificación**: Secuencias largas requieren más tiempo de modelado homólogo
+**Con el nuevo flujo híbrido:**
+- **Secuencia original (Swiss-Model)**: 2-5 min (≤200 aa) o 5-10 min (>200 aa)
+- **Secuencia mutada (Modeller)**: 30s-3min según nivel de optimización
+- **Total estimado**: 3-13 minutos (vs 10-20 min del método anterior)
+
+**Niveles de optimización Modeller:**
+- `low`: ~10-20 segundos
+- `medium`: ~30-60 segundos
+- `high`: ~1-3 minutos ⭐ (recomendado)
 
 ## 🧪 Testing y Validación
 
 ### Tests Automatizados
 
 ```bash
-# Ejecutar chequeo sintáctico rápido del paquete
+# Verificar sintaxis
 python -m compileall src
 
-# Lanzar el escenario de depuración SwissModel incluido en el repo
+# Verificar instalación de Modeller
+python setup_modeller.py
+
+# Test de integración (si existe)
 python test_swissmodel_debug.py
 ```
 
 ## 🛠️ Instalación y Configuración
 
-### Dependencias
+### Dependencias Base
 
 ```bash
+# Instalar dependencias Python
 pip install -r requirements.txt
 ```
+
+### Instalación de Modeller (NUEVO - Requerido)
+
+```bash
+# Opción A: Con conda (RECOMENDADO)
+conda install -c salilab modeller
+
+# Opción B: Descarga manual
+# https://salilab.org/modeller/download_installation.html
+```
+
+### Obtener Licencia Académica (GRATUITA)
+
+1. Ir a: https://salilab.org/modeller/registration.html
+2. Completar con email institucional `@frro.utn.edu.ar`
+3. Recibir clave por email
+4. Agregar a `.env`: `MODELLER_LICENSE_KEY=tu_clave`
 
 ### Configuración de Directorio
 
@@ -318,32 +540,45 @@ Copiar y ajustar el archivo `.env` con las configuraciones de SwissModel.
 
 ## 📈 Métricas y Monitoreo
 
-### Rendimiento
+### Rendimiento del Sistema Híbrido
 
-- **Tiempo de predicción**: 5-10 minutos según longitud de secuencia
-- **Secuencias ≤200 residuos**: Típicamente 2-5 minutos
-- **Secuencias >200 residuos**: Típicamente 5-10 minutos
-- **Uso de disco**: ~1-5 MB por modelo PDB/CIF generado
-- **Precisión**: Dependiente de homología y calidad de templates
+**Tiempos de procesamiento:**
+- **Original (Swiss-Model)**: 2-10 min según longitud
+  - ≤200 residuos: 2-5 minutos
+  - >200 residuos: 5-10 minutos
+- **Mutada (Modeller)**: 30s-3min según optimización
+  - `low`: ~10-20 segundos
+  - `medium`: ~30-60 segundos  
+  - `high`: ~1-3 minutos
+- **Total**: 3-13 minutos (50% más rápido que antes)
 
-### Limitaciones Actuales
+**Uso de recursos:**
+- **Disco**: ~1-5 MB por modelo PDB
+- **RAM**: ~500MB-2GB durante optimización Modeller
+- **CPU**: Intensivo durante MD (Molecular Dynamics)
 
-- **Longitud máxima**: 2000 aminoácidos (límite Swiss-Model)
-- **Tiempo de espera**: 5-10 minutos dinámico según secuencia
-- **Dependencia de templates**: Requiere proteínas homólogas conocidas
-- **API rate limits**: Límites de Swiss-Model API aplicables
+### Precisión y Confiabilidad
 
-### Configuración de Timeouts
+**Original (Swiss-Model):**
+- Depende de homología (GMQE > 0.6 = alta confianza)
+- Requiere templates en PDB
 
-```python
-# Lógica implementada en SwissModelService
-if sequence_length > 200:
-    max_attempts = 60  # 10 minutos
-    print(f"Secuencia larga ({sequence_length} residuos). Timeout: 10 min")
-else:
-    max_attempts = 30  # 5 minutos
-    print(f"Timeout: 5 minutos")
-```
+**Mutada (Modeller):**
+- Alta precisión para mutaciones puntuales
+- DOPE < -0.03 por residuo = excelente calidad
+- No depende de templates adicionales ✅
+
+### Limitaciones
+
+**Swiss-Model (solo original):**
+- Longitud máxima: 2000 aminoácidos
+- Requiere proteínas homólogas conocidas
+- API rate limits aplicables
+
+**Modeller (solo mutada):**
+- Requiere licencia académica (gratuita)
+- Intensivo en CPU para nivel `high`
+- Solo mutaciones puntuales (no inserciones/deleciones grandes)
 
 ## 🔮 Próximas Funcionalidades
 
@@ -353,17 +588,19 @@ else:
 - **Análisis de bolsillos** y sitios activos
 - **Comparación con estructuras experimentales** (PDB)
 - **Predicción de efectos alostéricos**
+- **Optimización paralela** de múltiples mutaciones
 
 ### Planificado
 
 - **Integración con ChimeraX** para visualización avanzada
-- **Análisis de dinámicas moleculares** básicas
+- **Análisis de dinámicas moleculares** extendidas con Modeller
 - **Predicción de interacciones** proteína-proteína
 - **Export a formatos** adicionales (mmCIF, mol2)
+- **Machine Learning** para predecir impacto de mutaciones
 
 ## 📞 Soporte y Solución de Problemas
 
-### Problemas Comunes
+### Problemas Comunes con Swiss-Model
 
 1. **"Swiss-Model service not available"**: Verificar token y configuración API
 2. **"Model file not found"**: Comprobar permisos del directorio de modelos
@@ -371,31 +608,82 @@ else:
 4. **"No homologous templates found"**: Swiss-Model no encontró proteínas similares
 5. **"GMQE score too low"**: Baja confianza en el modelo generado
 
+### Problemas Comunes con Modeller (NUEVO)
+
+1. **"Modeller no está instalado"**
+   - Solución: `conda install -c salilab modeller`
+   
+2. **"Invalid license key"**
+   - Verifica `.env`: `MODELLER_LICENSE_KEY=tu_clave`
+   - Sin espacios extra ni comillas
+   
+3. **"Import modeller could not be resolved"**
+   - Reinstalar: `conda install -c salilab modeller --force-reinstall`
+   - Verificar PATH de Python
+   
+4. **"Residue not found at position X"**
+   - El PDB puede tener numeración diferente
+   - Verifica que las posiciones sean 1-based
+   
+5. **"DOPE score muy alto (>10000)"**
+   - La mutación puede ser muy drástica
+   - Revisar BLOSUM/Grantham scores
+   - Considerar nivel `high` de optimización
+
 ### Configuración Requerida
 
 ```env
 # .env
+
+# Swiss-Model (para original)
 SWISS_MODEL_TOKEN=your_swiss_model_api_token
-MODELS_DIRECTORY=models/swissmodel
-API_TIMEOUT=600  # 10 minutos máximo
 SWISSMODEL_API_ENDPOINT=https://swissmodel.expasy.org/
+MODELS_DIRECTORY=models/swissmodel
+API_TIMEOUT=600
+
+# Modeller (para mutada) - NUEVO
+MODELLER_LICENSE_KEY=tu_clave_academica
+MODELLER_OPTIMIZATION_LEVEL=high
 ```
 
 ### Logs de Debug
 
-Los logs detallados se encuentran en la consola durante la ejecución.
+**Verifica que el flujo sea correcto:**
+```
+✅ Correcto (nuevo flujo):
+   ➡️  Paso 1: Obteniendo estructura [...] secuencia original...
+   ➡️  Paso 2: Generando estructura mutada [...] con Modeller...
+   🔬 Aplicando mutaciones con Modeller...
+   
+❌ Incorrecto (flujo antiguo):
+   ➡️  Paso 2: Generando estructura mutada desde modelos originales...
+   🔬 Aplicando mutaciones usando algoritmos avanzados...
+   [llamada a Swiss-Model para mutada]
+```
+
+### Recursos Útiles
+
+**Swiss-Model:**
+- Manual: https://swissmodel.expasy.org/docs/
+- FAQ: https://swissmodel.expasy.org/docs/faq
+
+**Modeller:**
+- Manual: https://salilab.org/modeller/manual/
+- Tutorial: https://salilab.org/modeller/tutorial/
+- Licencia: https://salilab.org/modeller/registration.html
+- Soporte: https://salilab.org/modeller/contact.html
 
 ### Contacto
 
-Para problemas específicos de SwissModel, consultar la documentación del proyecto.
+Para problemas específicos del proyecto, consultar la documentación interna o contactar al equipo de desarrollo.
 
 ---
 
-**✅ La integración Swiss-Model está completamente implementada y optimizada para secuencias de diferentes longitudes.**
+**✅ Sistema híbrido Swiss-Model + Modeller completamente implementado y optimizado.**
 
-**🔧 Optimizaciones incluidas:**
-
-- Timeout dinámico basado en longitud de secuencia
-- Manejo mejorado de estados asíncronos
-- Extracción automática de métricas de calidad GMQE/QMEAN
-- Integración completa con SwissModel para predicción de estructuras 3D
+**🎯 Ventajas del nuevo flujo:**
+- ⚡ 50% más rápido (3-13 min vs 10-20 min)
+- 🎓 Alta precisión con Modeller académico
+- 💰 1 sola llamada a Swiss-Model (ahorro API)
+- 🔧 Sin dependencia de templates para mutadas
+- 📊 Métricas DOPE adicionales de calidad

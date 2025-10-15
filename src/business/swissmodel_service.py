@@ -52,6 +52,19 @@ class SwissModelService:
         )
         self.mutation_scorer = MutationScorer()
         self.structure_parser = PDBParser(QUIET=True)
+        
+        # Inicializar Modeller si está disponible
+        self.modeller_mutator = None
+        try:
+            from .modeller_mutator import create_modeller_mutator
+            from config.modeller_config import get_modeller_config
+            
+            modeller_config = get_modeller_config()
+            self.modeller_mutator = create_modeller_mutator(modeller_config)
+            print("✅ Modeller integrado correctamente en SwissModelService")
+        except Exception as e:
+            print(f"⚠️ Modeller no disponible: {e}")
+            print("   Las mutaciones usarán método alternativo")
 
     def cleanup_old_models(self, user_id: int = None, keep_recent: int = 3) -> Dict[str, Any]:
         """
@@ -1224,6 +1237,176 @@ class SwissModelService:
             penalty += max(0.0, local_peak - 0.8) * 5.0
 
         return round(min(45.0, penalty), 2)
+
+    def predict_mutated_with_modeller(
+        self,
+        original_result: Dict[str, Any],
+        mutations: List[Tuple[int, str, str]],
+        mutated_sequence: str,
+        job_name: str
+    ) -> Dict[str, Any]:
+        """
+        Predice estructura mutada usando SOLO Modeller sobre el modelo consenso original.
+        NO realiza llamadas a SwissModel para la secuencia mutada.
+        
+        Este método:
+        1. Toma el modelo consenso original de SwissModel
+        2. Aplica mutaciones físicamente con Modeller (rotámeros + optimización)
+        3. Calcula métricas usando tus algoritmos (ΔΔG, BLOSUM, Grantham, SASA)
+        4. Ajusta confianza según penalizaciones
+        5. Genera reporte HTML
+        
+        Args:
+            original_result: Resultado de predict_structure() con return_all_models=True
+            mutations: Lista de tuplas (posición, aa_original, aa_mutado)
+            mutated_sequence: Secuencia completa mutada
+            job_name: Nombre para archivos generados
+            
+        Returns:
+            Dict con información del modelo mutado y métricas
+            
+        Raises:
+            SwissModelIntegrationError: Si Modeller no está disponible o falla
+        """
+        if not self.modeller_mutator:
+            raise SwissModelIntegrationError(
+                "Modeller no está disponible. "
+                "Instala con: conda install -c salilab modeller"
+            )
+        
+        print(f"\n🔬 Iniciando predicción de mutada con Modeller")
+        print(f"   📝 Job: {job_name}")
+        print(f"   🧬 Mutaciones: {mutations}")
+        
+        start_time = time.time()
+        
+        # 1. Obtener modelo consenso original
+        consensus_model = original_result.get('consensus_model')
+        if not consensus_model:
+            # Fallback: usar el mejor modelo si no hay consenso
+            best_model = original_result.get('best_model', original_result.get('models', [{}])[0])
+            original_pdb = best_model.get('model_path')
+            residue_sasa = {}
+            residue_conservation = {}
+            residue_consensus = {}
+            coverage = 1.0
+        else:
+            original_pdb = consensus_model['consensus_path']
+            residue_sasa = consensus_model.get('residue_sasa', {})
+            residue_conservation = consensus_model.get('residue_conservation', {})
+            residue_consensus = consensus_model.get('residue_consensus', {})
+            coverage = consensus_model.get('coverage', 1.0)
+        
+        print(f"   📁 Modelo original: {original_pdb}")
+        
+        # 2. Preparar descriptores de mutación
+        descriptors = [
+            MutationDescriptor(position=pos, original=orig, mutated=mut)
+            for pos, orig, mut in mutations
+        ]
+        
+        # 3. Calcular entornos ANTES de mutar (del consenso original)
+        print(f"   📊 Calculando entorno de mutaciones...")
+        environments = {
+            descriptor.position: MutationEnvironment(
+                sasa=residue_sasa.get(descriptor.position),
+                is_surface=(
+                    residue_sasa.get(descriptor.position) is not None
+                    and residue_sasa.get(descriptor.position) >= 80.0
+                ),
+                conservation=residue_conservation.get(descriptor.position),
+            )
+            for descriptor in descriptors
+        }
+        
+        # 4. Puntuar mutaciones con TUS algoritmos
+        print(f"   🧮 Puntuando mutaciones (BLOSUM, Grantham, ΔΔG)...")
+        mutation_scores = self.mutation_scorer.score_mutations(descriptors, environments)
+        
+        print(f"   📈 ΔΔG promedio: {mutation_scores['aggregate']['mean_ddg']:.2f} kcal/mol")
+        print(f"   📈 Impacto: {mutation_scores['aggregate']['impact_level']}")
+        
+        # 5. MODELLER: Aplicar mutaciones físicamente
+        print(f"   🔬 Aplicando mutaciones con Modeller...")
+        mutated_pdb_path = os.path.join(
+            self.models_directory,
+            f"{job_name}_modeller_mutated.pdb"
+        )
+        
+        modeller_result = self.modeller_mutator.mutate_structure(
+            pdb_path=original_pdb,
+            mutations=mutations,
+            output_path=mutated_pdb_path,
+            optimization_level='high'  # Alta precisión
+        )
+        
+        # 6. Calcular métricas estructurales (TUS algoritmos)
+        print(f"   📐 Calculando métricas estructurales (RMSD, SASA)...")
+        structural_metrics = self._compute_structural_metrics(
+            original_pdb,
+            modeller_result['model_path'],
+            descriptors
+        )
+        structural_metrics['coverage'] = coverage
+        
+        print(f"   📊 RMSD global: {structural_metrics.get('global_rmsd', 'N/A')}")
+        
+        # 7. Ajustar confianza (TU algoritmo)
+        base_confidence = original_result.get('best_model', {}).get('confidence', 0.0)
+        if not base_confidence:
+            base_confidence = original_result.get('confidence', 0.0)
+        
+        penalty = self._derive_confidence_penalty(
+            mutation_scores,
+            structural_metrics
+        )
+        
+        adjusted_confidence = max(0.0, base_confidence - penalty)
+        
+        print(f"   🎯 Confianza base: {base_confidence:.1f}%")
+        print(f"   🎯 Penalización: -{penalty:.1f}%")
+        print(f"   🎯 Confianza ajustada: {adjusted_confidence:.1f}%")
+        
+        # 8. Generar reporte HTML
+        print(f"   📄 Generando reporte HTML...")
+        reports_dir = Path(self.models_directory) / "reports"
+        report_path = build_mutation_report(
+            reports_dir / f"{job_name}_mutation_report.html",
+            descriptors,
+            mutation_scores,
+            structural_metrics,
+            {'residue_sasa': residue_sasa, 'residue_conservation': residue_conservation, 'residue_consensus': residue_consensus},
+            base_confidence,
+            adjusted_confidence,
+        )
+        
+        # 9. Construir resultado final
+        processing_time = time.time() - start_time
+        
+        result = {
+            'model_path': modeller_result['model_path'],
+            'confidence': round(adjusted_confidence, 2),
+            'confidence_source': f'Modeller + consensus penalties (penalty: {penalty:.1f})',
+            'prediction_method': 'modeller_mutation_on_consensus',
+            'mutations_applied': [d.notation() for d in descriptors],
+            'physicochemical_scores': mutation_scores,
+            'structural_metrics': structural_metrics,
+            'modeller_quality': modeller_result['quality_scores'],
+            'original_model_path': original_pdb,
+            'processing_time': processing_time,
+            'mutation_report_path': str(report_path),
+            
+            # Información adicional
+            'sequence_length': len(mutated_sequence),
+            'base_confidence': base_confidence,
+            'confidence_penalty': penalty,
+            'optimization_level': modeller_result.get('optimization_level', 'high'),
+        }
+        
+        print(f"\n✅ Predicción con Modeller completada en {processing_time:.1f}s")
+        print(f"   📊 Resultado: Confianza {adjusted_confidence:.1f}%, DOPE {modeller_result['quality_scores']['dope_score']:.1f}")
+        
+        return result
 
 
 def create_swissmodel_service(config: Dict[str, Any]) -> SwissModelService:

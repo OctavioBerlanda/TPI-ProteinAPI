@@ -272,7 +272,7 @@ class ComparisonManager:
             print(f"   🏆 Mejor modelo: GMQE={best.get('gmqe_score', 'N/A'):.3f}, Confianza={best.get('confidence', 'N/A')}%")
 
         # --- Paso 2: Generar la estructura MUTADA aplicando mutaciones a los modelos originales ---
-        print("\n➡️  Paso 2: Generando estructura mutada desde modelos originales...")
+        print("\n➡️  Paso 2: Generando estructura mutada desde modelos originales con Modeller...")
         print(f"   📄 Secuencia mutada ({len(mutated_sequence)} aa): {mutated_sequence[:30]}{'...' if len(mutated_sequence) > 30 else ''}")
         mutated_job_name = f"{comparison_name}_mutated_pred"
         
@@ -281,21 +281,15 @@ class ComparisonManager:
         mutations = [(m['position'], m['original_amino_acid'], m['mutated_amino_acid']) for m in validation_result['mutations']['mutations']]
         print(f"   🔄 Mutaciones detectadas: {mutations}")
         
-        try:
-            print(f"🔬 Aplicando {len(mutations)} mutación(es) usando algoritmos avanzados...")
-            mutated_result = self.swissmodel_service.predict_mutated_structure_advanced(
-                original_result,
-                mutations,
-                mutated_job_name,
-                mutated_sequence,
-            )
-            print(f"   ✅ Modelo mutado generado exitosamente")
-        except SwissModelIntegrationError as e:
-            print(f"⚠️ Falló la predicción mutada desde modelos: {e}. Usando SWISS-MODEL directo como fallback.")
-            # Fallback: predecir directamente con SWISS-MODEL
-            mutated_result = self.swissmodel_service.predict_structure(
-                mutated_sequence, mutated_job_name
-            )
+        # NUEVO FLUJO: SIEMPRE usar Modeller (sin fallback a SwissModel)
+        print(f"🔬 Aplicando {len(mutations)} mutación(es) con Modeller...")
+        mutated_result = self.swissmodel_service.predict_mutated_with_modeller(
+            original_result=original_result,
+            mutations=mutations,
+            mutated_sequence=mutated_sequence,
+            job_name=mutated_job_name
+        )
+        print(f"   ✅ Modelo mutado generado exitosamente con Modeller")
 
         # --- Paso 3: Comparar ambas estructuras (sin cambios) ---
         print("\n➡️  Paso 3: Comparando ambas estructuras...")
