@@ -28,7 +28,7 @@
         <ul class="mb-0">
           <li>Ingrese dos secuencias de proteínas (original y mutada)</li>
           <li>Las secuencias deben tener la <strong>misma longitud</strong></li>
-          <li>Máximo <strong>2 diferencias</strong> entre las secuencias</li>
+          <li>Puede haber <strong>cualquier cantidad de diferencias</strong> entre las secuencias</li>
           <li>Solo se permiten los 20 aminoácidos estándar (A, R, N, D, C, Q, E, G, H, I, L, K, M, F, P, S, T, W, Y, V)
           </li>
         </ul>
@@ -331,9 +331,6 @@
 
           if (differences === 0) {
             messages.push('⚠️ No hay diferencias entre las secuencias');
-            isValid = false;
-          } else if (differences > 2) {
-            messages.push(`⚠️ Demasiadas diferencias: ${differences} (máximo 2)`);
             isValid = false;
           } else {
             messages.push(`✅ ${differences} diferencia(s) encontrada(s)`);

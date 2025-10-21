@@ -110,8 +110,10 @@ class SequenceValidator:
     
     @classmethod
     def validate_mutation_count(cls, differences: List[Tuple[int, str, str]], 
-                              max_mutations: int = 2) -> bool:
-        """Valida que el número de mutaciones no exceda el máximo permitido"""
+                              max_mutations: int = None) -> bool:
+        """Valida que el número de mutaciones no exceda el máximo permitido (None = sin límite)"""
+        if max_mutations is None:
+            return True  # Sin límite de mutaciones
         return len(differences) <= max_mutations
     
     @classmethod
@@ -162,8 +164,8 @@ class SequenceValidator:
 class SequenceComparisonService:
     """Servicio principal para comparar secuencias de proteínas"""
     
-    def __init__(self, max_mutations: int = 2):
-        self.max_mutations = max_mutations
+    def __init__(self, max_mutations: int = None):
+        self.max_mutations = max_mutations  # None = sin límite
     
     def validate_and_compare_sequences(self, original_sequence: str, 
                                      mutated_sequence: str) -> Dict[str, Any]:
@@ -228,8 +230,8 @@ class SequenceComparisonService:
             # Encontrar diferencias
             differences = SequenceValidator.find_differences(clean_original, clean_mutated)
             
-            # Validar número de mutaciones
-            if not SequenceValidator.validate_mutation_count(differences, self.max_mutations):
+            # Validar número de mutaciones (solo si hay límite establecido)
+            if self.max_mutations is not None and not SequenceValidator.validate_mutation_count(differences, self.max_mutations):
                 result['errors'].append(
                     f"Demasiadas mutaciones encontradas: {len(differences)}. "
                     f"Máximo permitido: {self.max_mutations}"

@@ -39,6 +39,15 @@ class ProteinComparisonRepository:
         ).all()
     
     @staticmethod
+    def get_comparison_by_sequences_and_user(user_id: int, original_sequence: str, mutated_sequence: str) -> Optional[ProteinComparison]:
+        """Obtiene una comparación existente con las mismas secuencias para un usuario"""
+        return ProteinComparison.query.filter_by(
+            user_id=user_id,
+            original_sequence=original_sequence,
+            mutated_sequence=mutated_sequence
+        ).order_by(ProteinComparison.created_at.desc()).first()
+    
+    @staticmethod
     def update_comparison_status(comparison_id: int, status: str, 
                                original_prediction_url: str = None,
                                mutated_prediction_url: str = None) -> bool:

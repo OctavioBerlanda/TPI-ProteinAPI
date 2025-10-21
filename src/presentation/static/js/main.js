@@ -144,12 +144,6 @@ document.addEventListener('DOMContentLoaded', function () {
           messages.push('⚠️ No hay diferencias entre las secuencias');
           isValid = false;
           alertClass = 'alert-warning';
-        } else if (differences.length > 2) {
-          messages.push(
-            `❌ Demasiadas diferencias: ${differences.length} (máximo 2)`
-          );
-          isValid = false;
-          alertClass = 'alert-danger';
         } else {
           const diffDescriptions = differences.map(
             (d) => `${d.original}${d.position}${d.mutated}`
@@ -377,7 +371,7 @@ window.ProteinComparator = {
     }
 
     return {
-      valid: differences.length > 0 && differences.length <= 2,
+      valid: differences.length > 0, // Sin límite máximo, solo que haya diferencias
       differences: differences,
       totalDifferences: differences.length,
     };

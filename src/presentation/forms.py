@@ -33,7 +33,7 @@ class SequenceComparisonForm(FlaskForm):
     mutated_sequence = TextAreaField('Secuencia Mutada', 
                                    validators=[DataRequired(message="La secuencia mutada es obligatoria"),
                                              Length(min=1, max=10000, message="La secuencia debe tener entre 1 y 10000 caracteres")],
-                                   render_kw={'rows': 6, 'placeholder': 'Ingrese la secuencia de aminoácidos mutada (máximo 2 diferencias)'})
+                                   render_kw={'rows': 6, 'placeholder': 'Ingrese la secuencia de aminoácidos mutada (misma longitud que la original)'})
     
     swiss_model = BooleanField('Incluir Predicción de SwissModel')
     

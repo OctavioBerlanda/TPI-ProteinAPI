@@ -7,7 +7,7 @@ class ComparisonManager:
     """Gestor principal para las comparaciones de proteínas"""
     
     def __init__(self, config: Dict[str, Any] = None):
-        self.sequence_service = SequenceComparisonService(max_mutations=2)
+        self.sequence_service = SequenceComparisonService(max_mutations=None)  # Sin límite de mutaciones
         self.swissmodel_service = SwissModelService(config or {}) if config else None
     
     def create_comparison(self, username: str, email: str, original_sequence: str, 
@@ -50,6 +50,20 @@ class ComparisonManager:
             
             # Obtener o crear usuario
             user = UserRepository.get_or_create_user(username, email)
+            
+            # Verificar si ya existe una comparación con las mismas secuencias para este usuario
+            existing_comparison = ProteinComparisonRepository.get_comparison_by_sequences_and_user(
+                user_id=user.id,
+                original_sequence=validation_result['original_sequence'],
+                mutated_sequence=validation_result['mutated_sequence']
+            )
+            
+            if existing_comparison:
+                print(f"✅ Comparación existente encontrada (ID: {existing_comparison.id}), reutilizando...")
+                result['success'] = True
+                result['comparison_id'] = existing_comparison.id
+                result['message'] = "Comparación existente encontrada y reutilizada"
+                return result
             
             # Crear comparación en la base de datos
             mutations = validation_result['mutations']
@@ -212,15 +226,69 @@ class ComparisonManager:
         if not comparison_name:
             comparison_name = f"comparison_{comparison_id}"
 
-        # --- Paso 0: Limpiar modelos antiguos antes de generar nuevos ---
+        # --- Paso 0: Verificar si ya existen modelos para esta comparación ---
+        from src.data.repositories import ProteinComparisonRepository
+        existing_comparison = ProteinComparisonRepository.get_comparison_by_id(comparison_id)
+
+        if (existing_comparison and
+            existing_comparison.original_model_path and
+            existing_comparison.mutated_model_path and
+            existing_comparison.original_confidence_score is not None and
+            existing_comparison.mutated_confidence_score is not None):
+
+            print("✅ Modelos ya existen para esta comparación, reutilizando...")
+
+            # Verificar que los archivos realmente existen
+            import os
+            original_path = existing_comparison.original_model_path
+            mutated_path = existing_comparison.mutated_model_path
+            
+            # Resolver rutas absolutas si son relativas
+            if not os.path.isabs(original_path):
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                original_path = os.path.join(project_root, original_path)
+            
+            if not os.path.isabs(mutated_path):
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+                mutated_path = os.path.join(project_root, mutated_path)
+            
+            original_exists = os.path.exists(original_path)
+            mutated_exists = os.path.exists(mutated_path)
+
+            if original_exists and mutated_exists:
+                print("   📁 Ambos archivos de modelo encontrados, retornando datos existentes")
+
+                # Retornar datos existentes sin volver a descargar
+                return {
+                    'original': {
+                        'model_path': existing_comparison.original_model_path,
+                        'model_url': existing_comparison.original_prediction_url,
+                        'confidence': existing_comparison.original_confidence_score,
+                        'job_id': existing_comparison.swissmodel_job_id.split(',')[0] if existing_comparison.swissmodel_job_id else None
+                    },
+                    'mutated': {
+                        'model_path': existing_comparison.mutated_model_path,
+                        'model_url': existing_comparison.mutated_prediction_url,
+                        'confidence': existing_comparison.mutated_confidence_score,
+                        'job_id': existing_comparison.swissmodel_job_id.split(',')[-1] if existing_comparison.swissmodel_job_id else None
+                    },
+                    'comparison': {
+                        'rmsd_value': existing_comparison.rmsd_value or 0.0,
+                        'structural_changes': existing_comparison.structural_changes
+                    }
+                }
+            else:
+                print(f"   ⚠️ Archivos faltantes - Original: {'✅' if original_exists else '❌'} ({original_path}), Mutado: {'✅' if mutated_exists else '❌'} ({mutated_path})")
+                print("   🔄 Re-descargando modelos faltantes...")
+
+        # --- Paso 1: Limpiar modelos antiguos antes de generar nuevos ---
         try:
             # Obtener el user_id de la comparación actual
-            from src.data.repositories import ProteinComparisonRepository
             comparison = ProteinComparisonRepository.get_comparison_by_id(comparison_id)
             if comparison and comparison.user_id:
                 print("🧹 Limpiando modelos antiguos del usuario...")
                 cleanup_stats = self.swissmodel_service.cleanup_old_models(
-                    user_id=comparison.user_id, 
+                    user_id=comparison.user_id,
                     keep_recent=3  # Mantener las 3 comparaciones más recientes
                 )
                 if cleanup_stats['files_deleted'] > 0:
@@ -228,34 +296,21 @@ class ComparisonManager:
         except Exception as e:
             print(f"   ⚠️ Error en limpieza (continuando): {str(e)}")
 
-        # --- Paso 1: Obtener la estructura ORIGINAL con múltiples modelos ---
-        print("➡️  Paso 1: Obteniendo estructura de referencia para la secuencia original...")
-        original_job_name = f"{comparison_name}_original_ref"
+        # --- Paso 2: Predecir estructura ORIGINAL con SwissModel ---
+        print("➡️  Paso 1: Prediciendo estructura de la secuencia ORIGINAL con SwissModel...")
+        original_job_name = f"{comparison_name}_original"
         original_result = self.swissmodel_service.predict_structure(
             original_sequence, original_job_name, return_all_models=True
         )
 
-        # --- Paso 2: Generar la estructura MUTADA aplicando mutaciones a los modelos originales ---
-        print("\n➡️  Paso 2: Generando estructura mutada desde modelos originales...")
-        mutated_job_name = f"{comparison_name}_mutated_pred"
-        
-        # Obtener las mutaciones
-        validation_result = self.sequence_service.validate_and_compare_sequences(original_sequence, mutated_sequence)
-        mutations = [(m['position'], m['original_amino_acid'], m['mutated_amino_acid']) for m in validation_result['mutations']['mutations']]
-        
-        try:
-            print(f"🔬 Aplicando {len(mutations)} mutación(es) usando algoritmos avanzados...")
-            mutated_result = self.swissmodel_service.predict_mutated_structure_advanced(
-                original_result, mutations, mutated_job_name
-            )
-        except SwissModelIntegrationError as e:
-            print(f"⚠️ Falló la predicción mutada desde modelos: {e}. Usando SWISS-MODEL directo como fallback.")
-            # Fallback: predecir directamente con SWISS-MODEL
-            mutated_result = self.swissmodel_service.predict_structure(
-                mutated_sequence, mutated_job_name
-            )
+        # --- Paso 2: Predecir estructura MUTADA con SwissModel ---
+        print("\n➡️  Paso 2: Prediciendo estructura de la secuencia MUTADA con SwissModel...")
+        mutated_job_name = f"{comparison_name}_mutated"
+        mutated_result = self.swissmodel_service.predict_structure(
+            mutated_sequence, mutated_job_name, return_all_models=True
+        )
 
-        # --- Paso 3: Comparar ambas estructuras (sin cambios) ---
+        # --- Paso 3: Comparar ambas estructuras ---
         print("\n➡️  Paso 3: Comparando ambas estructuras...")
         structural_comparison = self.swissmodel_service.compare_structures(
             original_result, mutated_result
@@ -263,7 +318,7 @@ class ComparisonManager:
 
         return {
             'original': original_result.get('best_model', original_result),
-            'mutated': mutated_result,
+            'mutated': mutated_result.get('best_model', mutated_result),
             'comparison': structural_comparison
         }
     def _update_comparison_swissmodel_data(self, comparison_id: int, swissmodel_results: Dict[str, Any]):

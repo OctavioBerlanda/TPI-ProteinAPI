@@ -477,21 +477,25 @@
         });
         console.log('⚙️ Stage parameters set');
 
-        // Auto-cargar el primer modelo disponible
-        console.log('🎯 hasOriginal:', hasOriginal);
-        console.log('🧪 hasMutated:', hasMutated);
-        console.log('🔗 originalModelUrl:', originalModelUrl);
-        console.log('🔗 mutatedModelUrl:', mutatedModelUrl);
+        // Función para inicializar la carga automática
+        function autoLoadFirstModel() {
+          console.log('🎯 Starting auto-load of first available model...');
 
-        if (hasOriginal) {
-          console.log('🎯 Loading original model...');
-          loadOriginalModel();
-        } else if (hasMutated) {
-          console.log('🧪 Loading mutated model...');
-          loadMutatedModel();
-        } else {
-          console.log('⚠️ No models available to load');
+          if (hasOriginal && originalModelUrl) {
+            console.log('🎯 Auto-loading original model...');
+            loadOriginalModel();
+          } else if (hasMutated && mutatedModelUrl) {
+            console.log('🧪 Auto-loading mutated model...');
+            loadMutatedModel();
+          } else {
+            console.log('⚠️ No models available for auto-load');
+            $('#loading-message').hide();
+            showError('No hay modelos 3D disponibles para esta comparación');
+          }
         }
+
+        // Auto-cargar el primer modelo disponible inmediatamente
+        autoLoadFirstModel();
 
         console.log('✅ NGL Viewer inicializado correctamente');
       } catch (error) {
@@ -527,10 +531,24 @@
 
     // Función para cargar modelo original
     function loadOriginalModel() {
-      if (!originalModelUrl) return;
-      clearComponents();
-      stage.loadFile(originalModelUrl).then(function (component) {
+      if (!originalModelUrl) {
+        console.log('⚠️ No original model URL available');
         $('#loading-message').hide();
+        return;
+      }
+
+      console.log('🎯 Loading original model from:', originalModelUrl);
+      clearComponents();
+
+      stage.loadFile(originalModelUrl).then(function (component) {
+        console.log('✅ Original model loaded successfully');
+
+        // SOLUCIÓN AGRESIVA: Eliminar completamente el loading-message del DOM
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+          console.log('🔄 Loading element completely removed from DOM (original model)');
+        }
 
         // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
         if (originalMethod && originalMethod.includes('simulation')) {
@@ -545,25 +563,46 @@
           });
           console.log('✅ Modelo original (simulado) renderizado con ball+stick');
         } else {
-          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
+          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon más fino como en comparación
           component.addRepresentation("cartoon", {
             color: "chainid",
-            radius: 0.5
+            radius: 0.3,  // Más fino que 0.5
+            opacity: 1.0  // Opacidad completa
           });
-          console.log('✅ Modelo original (real) renderizado con cartoon');
+          console.log('✅ Modelo original (real) renderizado con cartoon fino');
         }
         component.autoView();
       }).catch(function (error) {
+        console.error('❌ Error loading original model:', error);
+        // SOLUCIÓN AGRESIVA: Eliminar completamente el loading-message del DOM incluso en error
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+        }
         showError('No se pudo cargar el modelo original: ' + error.message);
       });
     }
 
     // Función para cargar modelo mutado
     function loadMutatedModel() {
-      if (!mutatedModelUrl) return;
-      clearComponents();
-      stage.loadFile(mutatedModelUrl).then(function (component) {
+      if (!mutatedModelUrl) {
+        console.log('⚠️ No mutated model URL available');
         $('#loading-message').hide();
+        return;
+      }
+
+      console.log('🧪 Loading mutated model from:', mutatedModelUrl);
+      clearComponents();
+
+      stage.loadFile(mutatedModelUrl).then(function (component) {
+        console.log('✅ Mutated model loaded successfully');
+
+        // SOLUCIÓN AGRESIVA: Eliminar completamente el loading-message del DOM
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+          console.log('🔄 Loading element completely removed from DOM (mutated model)');
+        }
 
         // LÓGICA CONDICIONAL: ¿Es un modelo real o una simulación?
         if (mutatedMethod && mutatedMethod.includes('simulation')) {
@@ -579,31 +618,45 @@
           });
           console.log('✅ Modelo mutado (simulado) renderizado con ball+stick');
         } else {
-          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon
+          // Es un modelo completo (de ColabFold o AFDB), usamos cartoon más fino como en comparación
           component.addRepresentation("cartoon", {
             color: "chainid",
-            radius: 0.5
+            radius: 0.3,  // Más fino que 0.5
+            opacity: 1.0  // Opacidad completa
           });
-          console.log('✅ Modelo mutado (real) renderizado con cartoon');
+          console.log('✅ Modelo mutado (real) renderizado con cartoon fino');
         }
         component.autoView();
       }).catch(function (error) {
+        console.error('❌ Error loading mutated model:', error);
+        // SOLUCIÓN AGRESIVA: Eliminar completamente el loading-message del DOM incluso en error
+        const loadingElement = document.getElementById('loading-message');
+        if (loadingElement) {
+          loadingElement.remove();
+        }
         showError('No se pudo cargar el modelo mutado: ' + error.message);
       });
     }
 
     // Función para cargar ambos modelos
     function loadBothModels() {
-      if (!originalModelUrl || !mutatedModelUrl) return;
+      if (!originalModelUrl || !mutatedModelUrl) {
+        console.log('⚠️ Missing URLs for both models comparison');
+        $('#loading-message').hide();
+        return;
+      }
 
+      console.log('👁️ Loading both models for comparison...');
       clearComponents();
 
       // NGL inferirá el formato desde la URL y los headers
       stage.loadFile(originalModelUrl).then(function (component) {
+        console.log('✅ Original model loaded for comparison');
         currentComponents.push(component);
         component.addRepresentation("cartoon", {
           color: "#2E86C1",  // Azul
-          opacity: 0.7
+          opacity: 0.7,
+          radius: 0.3  // Más fino
         });
         component.addRepresentation("ball+stick", {
           sele: "hetero",
@@ -613,10 +666,12 @@
         // Cargar modelo mutado
         return stage.loadFile(mutatedModelUrl);
       }).then(function (component) {
+        console.log('✅ Mutated model loaded for comparison');
         currentComponents.push(component);
         component.addRepresentation("cartoon", {
           color: "#E74C3C",  // Rojo
-          opacity: 0.7
+          opacity: 0.7,
+          radius: 0.3  // Más fino
         });
         component.addRepresentation("ball+stick", {
           sele: "hetero",
@@ -631,10 +686,11 @@
           console.log('🔄 Loading element completely removed from DOM (both models)');
         }
 
-        console.log('✅ Ambos modelos cargados para comparación');
+        console.log('✅ Both models loaded for comparison');
       }).catch(function (error) {
-        console.error('❌ Error cargando modelos para comparación:', error);
-        showError('No se pudieron cargar los modelos para comparación');
+        console.error('❌ Error loading models for comparison:', error);
+        $('#loading-message').hide();
+        showError('No se pudieron cargar los modelos para comparación: ' + error.message);
       });
     }
 
