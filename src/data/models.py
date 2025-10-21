@@ -44,12 +44,18 @@ class ProteinComparison(db.Model):
     # Resultados de SwissModel
     original_confidence_score = db.Column(db.Float)  # Puntuación de confianza promedio
     mutated_confidence_score = db.Column(db.Float)   # Puntuación de confianza promedio
+    original_confidence_source = db.Column(db.String(50))  # Fuente del score (GMQE, QMEAN, B-factor)
+    mutated_confidence_source = db.Column(db.String(50))   # Fuente del score (GMQE, QMEAN, B-factor)
     swissmodel_job_id = db.Column(db.String(100))     # ID del trabajo en SwissModel
     processing_time = db.Column(db.Float)            # Tiempo de procesamiento en segundos
     
-    # Análisis estructural avanzado
+    # Análisis estructural
     structural_changes = db.Column(db.Text)          # JSON con cambios estructurales detectados
-    rmsd_value = db.Column(db.Float)                 # Root Mean Square Deviation entre estructuras
+    rmsd_value = db.Column(db.Float)                 # Valor RMSD entre estructuras
+    
+    # Análisis de calidad local (GMQE por residuo)
+    original_quality_analysis = db.Column(db.Text)   # JSON con análisis detallado de calidad original
+    mutated_quality_analysis = db.Column(db.Text)    # JSON con análisis detallado de calidad mutada
     
     # Análisis avanzados de mutaciones
     stability_change_score = db.Column(db.Float)     # Cambio en estabilidad proteica
@@ -94,10 +100,15 @@ class ProteinComparison(db.Model):
             'mutated_model_path': self.mutated_model_path,
             'original_confidence_score': self.original_confidence_score,
             'mutated_confidence_score': self.mutated_confidence_score,
+            'original_confidence_source': self.original_confidence_source,
+            'mutated_confidence_source': self.mutated_confidence_source,
             'swissmodel_job_id': self.swissmodel_job_id,
             'processing_time': self.processing_time,
             'structural_changes': self.structural_changes,
             'rmsd_value': self.rmsd_value,
+            # Análisis de calidad local
+            'original_quality_analysis': self.original_quality_analysis,
+            'mutated_quality_analysis': self.mutated_quality_analysis,
             # Campos avanzados
             'stability_change_score': self.stability_change_score,
             'functional_impact_score': self.functional_impact_score,

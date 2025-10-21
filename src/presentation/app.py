@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 # Agregar el directorio raíz al path si no estamos ejecutando desde la raíz
 if 'src' in os.getcwd():
@@ -23,6 +24,17 @@ def create_app(config_name='default'):
     
     # Inicializar extensiones
     db.init_app(app)
+    
+    # Registrar filtros personalizados de Jinja2
+    @app.template_filter('from_json')
+    def from_json_filter(value):
+        """Filtro para convertir string JSON a objeto Python"""
+        if not value:
+            return None
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return None
     
     # Registrar blueprints
     from .routes import main_bp

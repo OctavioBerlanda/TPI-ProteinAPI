@@ -1,4 +1,6 @@
 from typing import Dict, Any, Optional
+from datetime import datetime
+import json
 from src.business.sequence_service import SequenceComparisonService, SequenceValidationError
 from src.business.swissmodel_service import SwissModelService, SwissModelIntegrationError
 from src.data.repositories import ProteinComparisonRepository, UserRepository
@@ -264,12 +266,14 @@ class ComparisonManager:
                         'model_path': existing_comparison.original_model_path,
                         'model_url': existing_comparison.original_prediction_url,
                         'confidence': existing_comparison.original_confidence_score,
+                        'confidence_source': existing_comparison.original_confidence_source or 'GMQE',
                         'job_id': existing_comparison.swissmodel_job_id.split(',')[0] if existing_comparison.swissmodel_job_id else None
                     },
                     'mutated': {
                         'model_path': existing_comparison.mutated_model_path,
                         'model_url': existing_comparison.mutated_prediction_url,
                         'confidence': existing_comparison.mutated_confidence_score,
+                        'confidence_source': existing_comparison.mutated_confidence_source or 'GMQE',
                         'job_id': existing_comparison.swissmodel_job_id.split(',')[-1] if existing_comparison.swissmodel_job_id else None
                     },
                     'comparison': {
@@ -349,6 +353,10 @@ class ComparisonManager:
             functional_data = mutated.get('functional_analysis', {})
             dynamics_data = mutated.get('dynamics_analysis', {})
             
+            # Extraer análisis de calidad
+            original_quality = original.get('quality_analysis')
+            mutated_quality = mutated.get('quality_analysis')
+
             update_data = {
                 'original_model_path': original.get('model_path'),
                 'mutated_model_path': mutated.get('model_path'),
@@ -356,11 +364,17 @@ class ComparisonManager:
                 'mutated_prediction_url': mutated.get('model_url'),
                 'original_confidence_score': float(original.get('confidence', 0.0)),
                 'mutated_confidence_score': float(mutated.get('confidence', 0.0)),
+                'original_confidence_source': original.get('confidence_source', 'GMQE'),
+                'mutated_confidence_source': mutated.get('confidence_source', 'GMQE'),
                 'swissmodel_job_id': f"{original.get('job_id', '')},{mutated.get('job_id', '')}",
                 'processing_time': float(original.get('processing_time', 0.0) + mutated.get('processing_time', 0.0)),
                 'structural_changes': structural_changes,
                 'rmsd_value': float(comparison.get('rmsd_value', 0.0)),
-                
+
+                # Análisis de calidad local
+                'original_quality_analysis': json.dumps(original_quality) if original_quality else None,
+                'mutated_quality_analysis': json.dumps(mutated_quality) if mutated_quality else None,
+
                 # Nuevos campos para análisis avanzado
                 'stability_change_score': float(stability_data.get('stability_change_score', 0.0)),
                 'functional_impact_score': float(functional_data.get('functional_impact_score', 0.0)),
@@ -377,3 +391,33 @@ class ComparisonManager:
         except Exception as e:
             print(f"Error actualizando datos de SwissModel: {e}")
             # No lanzar excepción para no interrumpir el flujo
+
+    def update_rmsd_calculation(self, comparison_id: int, rmsd_result: Dict[str, Any]) -> bool:
+        """
+        Actualiza el valor de RMSD calculado para una comparación
+
+        Args:
+            comparison_id: ID de la comparación
+            rmsd_result: Resultado del cálculo de RMSD
+
+        Returns:
+            True si se actualizó correctamente, False en caso contrario
+        """
+        try:
+            from src.data.repositories import ProteinComparisonRepository
+
+            repo = ProteinComparisonRepository()
+
+            update_data = {
+                'rmsd_value': rmsd_result.get('rmsd'),
+                'structural_changes': json.dumps({
+                    'rmsd_calculation': rmsd_result,
+                    'calculated_at': datetime.now().isoformat()
+                })
+            }
+
+            return repo.update_comparison(comparison_id, update_data)
+
+        except Exception as e:
+            print(f"Error actualizando RMSD: {e}")
+            return False

@@ -394,6 +394,55 @@ def get_model_file_as_pdb(comparison_id, model_type):
         print(f"❌ Error procesando archivo de modelo: {e}", flush=True)
         abort(500)
 
+@main_bp.route('/api/comparison/<int:comparison_id>/rmsd')
+def calculate_rmsd(comparison_id):
+    """API endpoint para calcular RMSD entre estructuras original y mutada"""
+    import os
+    from src.business.swissmodel_service import SwissModelService
+
+    try:
+        # Obtener detalles de la comparación
+        details = comparison_manager.get_comparison_details(comparison_id)
+        if not details:
+            return jsonify({'error': 'Comparación no encontrada'}), 404
+
+        # Verificar que tenga modelos SwissModel
+        if not details.get('comparison') or not details['comparison'].get('original_model_path'):
+            return jsonify({'error': 'No hay modelos 3D disponibles para esta comparación'}), 400
+
+        # Inicializar servicio SwissModel
+        swiss_service = SwissModelService(config)
+
+        # Calcular RMSD
+        original_path = details['comparison']['original_model_path']
+        mutated_path = details['comparison']['mutated_model_path']
+
+        # Resolver rutas absolutas si son relativas
+        if not os.path.isabs(original_path):
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            original_path = os.path.join(project_root, original_path)
+
+        if not os.path.isabs(mutated_path):
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            mutated_path = os.path.join(project_root, mutated_path)
+
+        # Verificar que ambos archivos existan
+        if not os.path.exists(original_path):
+            return jsonify({'error': f'Archivo original no encontrado: {original_path}'}), 400
+        if not os.path.exists(mutated_path):
+            return jsonify({'error': f'Archivo mutado no encontrado: {mutated_path}'}), 400
+
+        rmsd_result = swiss_service.calculate_rmsd_with_pymol(original_path, mutated_path)
+
+        # Guardar el resultado en la base de datos si fue exitoso
+        if rmsd_result.get('rmsd') is not None:
+            comparison_manager.update_rmsd_calculation(comparison_id, rmsd_result)
+
+        return jsonify(rmsd_result)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Manejo de errores
 @main_bp.errorhandler(404)
 def not_found_error(error):

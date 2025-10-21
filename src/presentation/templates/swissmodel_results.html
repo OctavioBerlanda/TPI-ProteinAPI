@@ -43,8 +43,7 @@
               <p><strong>Longitud de secuencia:</strong> {{ comparison.comparison.sequence_length or 0 }} aminoácidos
               </p>
               <p><strong>Mutaciones:</strong> {{ comparison.comparison.mutation_count or 0 }}</p>
-              <p><strong>Tiempo de procesamiento:</strong> {{ "%.2f"|format(comparison.comparison.processing_time or 0)
-                }} segundos
+              <p><strong>Tiempo de procesamiento:</strong> {{ comparison.comparison.processing_time or 0 }} segundos
               </p>
               <p><strong>Método de predicción:</strong> SwissModel</p>
             </div>
@@ -60,40 +59,32 @@
       <div class="card mb-4">
         <div class="card-header">
           <h4>🎯 Secuencia Original</h4>
-          <!-- Badge para distinguir tipo de predicción -->
-          {% set is_real_original = comparison.comparison.original_confidence_score and
-          comparison.comparison.original_confidence_score >= 90 %}
-          {% set is_mutated_original = comparison.comparison.original_confidence_score and
-          comparison.comparison.mutated_confidence_score and comparison.comparison.original_confidence_score >= 90 and
-          comparison.comparison.mutated_confidence_score >= 75 and comparison.comparison.mutated_confidence_score < 90
-            %} {% if is_real_original %} <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
-            {% else %}
-            <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
-            {% endif %}
+          <!-- Badge para calidad de predicción -->
+          {% set confidence_level = 'low' %}
+          {% if comparison.comparison.original_confidence_score >= 80 %}
+          {% set confidence_level = 'high' %}
+          {% elif comparison.comparison.original_confidence_score >= 50 %}
+          {% set confidence_level = 'medium' %}
+          {% endif %}
+
+          {% if confidence_level == 'high' %}
+          <span class="badge bg-success ms-2">🎯 Alta Confianza</span>
+          {% elif confidence_level == 'medium' %}
+          <span class="badge bg-warning ms-2">⚠️ Confianza Media</span>
+          {% else %}
+          <span class="badge bg-danger ms-2">❌ Baja Confianza</span>
+          {% endif %}
         </div>
         <div class="card-body">
           {% set orig_confidence = comparison.comparison.original_confidence_score or 0 %}
           {% set orig_badge_class = 'success' if orig_confidence > 80 else 'warning' if orig_confidence > 60 else
           'danger' %}
 
-          <!-- Alerta informativa sobre el tipo de predicción -->
-          {% if is_real_original %}
-          <div class="alert alert-success alert-sm mb-3">
-            <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
-          </div>
-          {% else %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Simulación:</strong> Estructura generada con algoritmos mejorados de predicción (Chou-Fasman +
-            homología).
-          </div>
-          {% endif %}
-
           <p><strong>Confianza promedio:</strong>
             <span class="badge bg-{{ orig_badge_class }}">
               {{ "%.1f"|format(orig_confidence) }}%
             </span>
+            <small class="text-muted">({{ comparison.comparison.get('original_confidence_source', 'GMQE') }})</small>
           </p>
           <div class="mb-3">
             <div class="progress">
@@ -102,6 +93,44 @@
               </div>
             </div>
           </div>
+
+          <!-- ANÁLISIS DETALLADO DE CALIDAD -->
+          {% if comparison.comparison.original_quality_analysis %}
+          <div class="mt-3">
+            <h6>🔍 Análisis Detallado de Calidad:</h6>
+            {% set quality_data = comparison.comparison.original_quality_analysis | from_json %}
+            {% if quality_data %}
+            <div class="small">
+              <p><strong>Residuos analizados:</strong> {{ quality_data.total_residues }}</p>
+              <p><strong>GMQE local:</strong> {{ "%.2f"|format(quality_data.gmqe_range.min | float) }} - {{
+                "%.2f"|format(quality_data.gmqe_range.max | float) }}</p>
+
+              <div class="mb-2">
+                <strong>Distribución de calidad:</strong>
+                <div class="d-flex justify-content-between small">
+                  <span>Alta (≥0.7): {{ quality_data.quality_distribution.high_quality.count }} ({{
+                    "%.1f"|format(quality_data.quality_distribution.high_quality.percentage | float) }}%)</span>
+                  <span>Media (0.5-0.7): {{ quality_data.quality_distribution.medium_quality.count }} ({{
+                    "%.1f"|format(quality_data.quality_distribution.medium_quality.percentage | float) }}%)</span>
+                  <span>Baja (<0.5): {{ quality_data.quality_distribution.low_quality.count }} ({{ "%.1f"
+                      |format(quality_data.quality_distribution.low_quality.percentage | float) }}%)</span>
+                </div>
+              </div>
+
+              {% if quality_data.problematic_regions %}
+              <div class="alert alert-warning py-2">
+                <strong>⚠️ Regiones problemáticas:</strong>
+                {% for region in quality_data.problematic_regions %}
+                <div>Residuos {{ region[0] }}-{{ region[1] }} (GMQE: {{
+                  "%.2f"|format(quality_data.local_scores.get(region[0], "N/A") | float) }}</div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
           <p><strong>Secuencia:</strong></p>
           <div class="sequence-display">
             {{ comparison.comparison.original_sequence }}
@@ -122,14 +151,20 @@
       <div class="card mb-4">
         <div class="card-header">
           <h4>🧪 Secuencia Mutada</h4>
-          <!-- Badge para distinguir tipo de predicción -->
-          {% if is_mutated_original %}
-          <span class="badge bg-warning ms-2">📡 SwissModel DB Real (Mutada)</span>
-          {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
-          90 %}
-          <span class="badge bg-success ms-2">📡 SwissModel DB Real</span>
+          <!-- Badge para calidad de predicción -->
+          {% set confidence_level_mutated = 'low' %}
+          {% if comparison.comparison.mutated_confidence_score >= 80 %}
+          {% set confidence_level_mutated = 'high' %}
+          {% elif comparison.comparison.mutated_confidence_score >= 50 %}
+          {% set confidence_level_mutated = 'medium' %}
+          {% endif %}
+
+          {% if confidence_level_mutated == 'high' %}
+          <span class="badge bg-success ms-2">🎯 Alta Confianza</span>
+          {% elif confidence_level_mutated == 'medium' %}
+          <span class="badge bg-warning ms-2">⚠️ Confianza Media</span>
           {% else %}
-          <span class="badge bg-secondary ms-2">🔮 Simulación Mejorada</span>
+          <span class="badge bg-danger ms-2">❌ Baja Confianza</span>
           {% endif %}
         </div>
         <div class="card-body">
@@ -137,30 +172,12 @@
           {% set mut_badge_class = 'success' if mut_confidence > 80 else 'warning' if mut_confidence > 60 else 'danger'
           %}
 
-          <!-- Alerta informativa sobre el tipo de predicción -->
-          {% if is_mutated_original %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-circle"></i>
-            <strong>Estructura Real Mutada:</strong> Basada en SwissModel DB pero con confianza reducida por la mutación
-            detectada.
-          </div>
-          {% elif comparison.comparison.mutated_confidence_score and comparison.comparison.mutated_confidence_score >=
-          90 %}
-          <div class="alert alert-success alert-sm mb-3">
-            <i class="fas fa-check-circle"></i>
-            <strong>Estructura Real:</strong> Obtenida de SwissModel Database con máxima confianza experimental.
-          </div>
-          {% else %}
-          <div class="alert alert-warning alert-sm mb-3">
-            <i class="fas fa-exclamation-triangle"></i>
-            <strong>Simulación:</strong> Estructura generada con algoritmos mejorados de predicción (Chou-Fasman +
-            homología).
-          </div>
-          {% endif %}
+
           <p><strong>Confianza promedio:</strong>
             <span class="badge bg-{{ mut_badge_class }}">
               {{ "%.1f"|format(mut_confidence) }}%
             </span>
+            <small class="text-muted">({{ comparison.comparison.get('mutated_confidence_source', 'GMQE') }})</small>
           </p>
           <div class="mb-3">
             <div class="progress">
@@ -169,6 +186,44 @@
               </div>
             </div>
           </div>
+
+          <!-- ANÁLISIS DETALLADO DE CALIDAD -->
+          {% if comparison.comparison.mutated_quality_analysis %}
+          <div class="mt-3">
+            <h6>🔍 Análisis Detallado de Calidad:</h6>
+            {% set quality_data = comparison.comparison.mutated_quality_analysis | from_json %}
+            {% if quality_data %}
+            <div class="small">
+              <p><strong>Residuos analizados:</strong> {{ quality_data.total_residues }}</p>
+              <p><strong>GMQE local:</strong> {{ "%.2f"|format(quality_data.gmqe_range.min | float) }} - {{
+                "%.2f"|format(quality_data.gmqe_range.max | float) }}</p>
+
+              <div class="mb-2">
+                <strong>Distribución de calidad:</strong>
+                <div class="d-flex justify-content-between small">
+                  <span>Alta (≥0.7): {{ quality_data.quality_distribution.high_quality.count }} ({{
+                    "%.1f"|format(quality_data.quality_distribution.high_quality.percentage | float) }}%)</span>
+                  <span>Media (0.5-0.7): {{ quality_data.quality_distribution.medium_quality.count }} ({{
+                    "%.1f"|format(quality_data.quality_distribution.medium_quality.percentage | float) }}%)</span>
+                  <span>Baja (<0.5): {{ quality_data.quality_distribution.low_quality.count }} ({{ "%.1f"
+                      |format(quality_data.quality_distribution.low_quality.percentage | float) }}%)</span>
+                </div>
+              </div>
+
+              {% if quality_data.problematic_regions %}
+              <div class="alert alert-warning py-2">
+                <strong>⚠️ Regiones problemáticas:</strong>
+                {% for region in quality_data.problematic_regions %}
+                <div>Residuos {{ region[0] }}-{{ region[1] }} (GMQE: {{
+                  "%.2f"|format(quality_data.local_scores.get(region[0], "N/A") | float) }}</div>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          {% endif %}
+
           <p><strong>Secuencia:</strong></p>
           <div class="sequence-display">
             {{ comparison.comparison.mutated_sequence }}
@@ -263,6 +318,100 @@
           <p><strong>Posiciones afectadas:</strong> {{ comparison.comparison.mutation_positions or 'No disponible' }}
           </p>
           <p><strong>Número total de mutaciones:</strong> {{ comparison.comparison.mutation_count or 0 }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cálculo de RMSD con PyMOL -->
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3>🔬 Cálculo de RMSD con PyMOL</h3>
+          <small class="text-muted">Análisis estructural preciso usando PyMOL para alineación y cálculo de RMSD</small>
+        </div>
+        <div class="card-body">
+          {% if comparison.comparison.original_model_path and comparison.comparison.mutated_model_path %}
+          <div class="row">
+            <div class="col-md-6">
+              <div id="rmsd-calculator">
+                <button type="button" class="btn btn-primary btn-lg" id="calculate-rmsd-btn">
+                  🚀 Calcular RMSD con PyMOL
+                </button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div id="rmsd-results" style="display: none;">
+                <h5>📊 Resultados del Análisis RMSD</h5>
+                <div class="card border-primary">
+                  <div class="card-body">
+                    <div class="row">
+                      <div class="col-6">
+                        <strong>RMSD:</strong>
+                        <div class="h3 text-primary" id="rmsd-value">--</div>
+                        <small class="text-muted">Ångströms</small>
+                      </div>
+                      <div class="col-6">
+                        <strong>Método:</strong>
+                        <div class="h6" id="rmsd-method">--</div>
+                        <small class="text-muted" id="rmsd-note"></small>
+                      </div>
+                    </div>
+                    <hr>
+                    <div class="alert alert-info" id="rmsd-interpretation">
+                      <strong>Interpretación:</strong> --
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Script para calcular RMSD -->
+          <script>
+            document.getElementById('calculate-rmsd-btn').addEventListener('click', async function () {
+              const btn = this;
+              const resultsDiv = document.getElementById('rmsd-results');
+              const calculatorDiv = document.getElementById('rmsd-calculator');
+
+              // Cambiar estado del botón
+              btn.disabled = true;
+              btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Calculando...';
+
+              try {
+                const response = await fetch(`/api/comparison/{{ comparison_id }}/rmsd`);
+                const data = await response.json();
+
+                if (data.error) {
+                  throw new Error(data.error);
+                }
+
+                // Mostrar resultados
+                document.getElementById('rmsd-value').textContent = data.rmsd ? data.rmsd.toFixed(3) : 'N/A';
+                document.getElementById('rmsd-method').textContent = data.method === 'pymol' ? 'PyMOL' : 'BioPython';
+                document.getElementById('rmsd-note').textContent = data.note || '';
+                document.getElementById('rmsd-interpretation').innerHTML = `<strong>Interpretación:</strong> ${data.interpretation}`;
+
+                // Mostrar sección de resultados
+                resultsDiv.style.display = 'block';
+
+              } catch (error) {
+                alert('Error calculando RMSD: ' + error.message);
+              } finally {
+                // Restaurar botón
+                btn.disabled = false;
+                btn.innerHTML = '🚀 Calcular RMSD con PyMOL';
+              }
+            });
+          </script>
+
+          {% else %}
+          <div class="alert alert-warning">
+            <strong>⚠️ Modelos no disponibles</strong>
+            <p>Se requieren ambos modelos 3D (original y mutado) para calcular RMSD.</p>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
